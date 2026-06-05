@@ -1,8 +1,25 @@
+import { useEffect, useRef } from "react";
 import { theme } from "../theme";
-import type { MixState } from "../audio/engine";
+import type { MixState, PlayUpdate } from "../audio/engine";
 
-export function MixerStrip({ mix }: { mix: MixState | null }) {
-  const progress = mix && mix.phase !== "runup" ? mix.progress : 0;
+interface MixerStripProps {
+  mix: MixState | null; // coarse: phase + bar (label only)
+  subscribe: (cb: (f: PlayUpdate | null) => void) => () => void;
+}
+
+export function MixerStrip({ mix, subscribe }: MixerStripProps) {
+  const barRef = useRef<HTMLDivElement | null>(null);
+
+  // Crossfade fill is updated imperatively every frame — no re-render.
+  useEffect(
+    () =>
+      subscribe((f) => {
+        const p = f && f.mix && f.mix.phase !== "runup" ? f.mix.progress : 0;
+        if (barRef.current) barRef.current.style.width = `${p * 100}%`;
+      }),
+    [subscribe],
+  );
+
   const live = !!mix && mix.phase === "blend";
 
   return (
@@ -28,10 +45,11 @@ export function MixerStrip({ mix }: { mix: MixState | null }) {
         <span style={{ fontFamily: theme.serif, fontWeight: 600, color: theme.ink }}>A</span>
         <div style={{ flex: 1, height: 8, background: theme.line, borderRadius: 999, position: "relative", overflow: "hidden" }}>
           <div
+            ref={barRef}
             style={{
               position: "absolute",
               inset: 0,
-              width: `${progress * 100}%`,
+              width: "0%",
               background: theme.accent,
               transition: "width 80ms linear",
             }}

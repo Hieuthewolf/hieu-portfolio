@@ -30,11 +30,28 @@ export function useSegue() {
   const [tracks, setTracks] = useState<Tracks>({ A: null, B: null });
   const [plan, setPlan] = useState<TransitionPlan | null>(null);
   const [opts, setOpts] = useState<PlanOptions>(DEFAULT_OPTS);
-  const [playhead, setPlayhead] = useState<{ slot: Slot; pos: number } | null>(null);
   const [mix, setMix] = useState<MixState | null>(null);
   const [playing, setPlaying] = useState<Playing>(null);
   const [planning, setPlanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // The engine emits a PlayUpdate every animation frame (~60fps). Routing that
+  // through React state re-renders the whole tree (and re-draws both waveforms)
+  // 60×/sec, which is what made playback feel laggy. Instead, per-frame updates
+  // are pushed to imperative subscribers — the moving playhead and crossfade bar
+  // animate by writing to a canvas/DOM node directly, with zero re-renders.
+  // Only *coarse* changes (mix phase / bar boundary) flow through `mix` state.
+  const listenersRef = useRef(new Set<(f: PlayUpdate | null) => void>());
+  const mixKeyRef = useRef("");
+  const subscribe = useCallback((cb: (f: PlayUpdate | null) => void) => {
+    listenersRef.current.add(cb);
+    return () => {
+      listenersRef.current.delete(cb);
+    };
+  }, []);
+  const emit = useCallback((f: PlayUpdate | null) => {
+    for (const cb of listenersRef.current) cb(f);
+  }, []);
 
   // Mirrors for use inside stable callbacks without stale closures.
   const tracksRef = useRef(tracks);
@@ -136,21 +153,31 @@ export function useSegue() {
     [reResolve],
   );
 
-  const onUpdate = useCallback((u: PlayUpdate) => {
-    setPlayhead({ slot: u.slot, pos: u.head });
-    setMix(u.mix);
-  }, []);
+  const onUpdate = useCallback(
+    (u: PlayUpdate) => {
+      emit(u); // smooth, per-frame — no re-render
+      // Mirror to React state only when the discrete phase/bar actually changes.
+      const key = u.mix ? `${u.mix.phase}:${u.mix.bar}` : "none";
+      if (key !== mixKeyRef.current) {
+        mixKeyRef.current = key;
+        setMix(u.mix);
+      }
+    },
+    [emit],
+  );
   const onEnd = useCallback(() => {
-    setPlayhead(null);
+    emit(null);
+    mixKeyRef.current = "";
     setMix(null);
     setPlaying(null);
-  }, []);
+  }, [emit]);
   const stop = useCallback(() => {
     engine.stop();
-    setPlayhead(null);
+    emit(null);
+    mixKeyRef.current = "";
     setMix(null);
     setPlaying(null);
-  }, [engine]);
+  }, [engine, emit]);
 
   const playMix = useCallback(() => {
     const { A, B } = tracksRef.current;
@@ -200,7 +227,7 @@ export function useSegue() {
     tracks,
     plan,
     opts,
-    playhead,
+    subscribe,
     mix,
     playing,
     planning,

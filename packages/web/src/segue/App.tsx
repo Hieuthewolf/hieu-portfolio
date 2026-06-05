@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { theme } from "./theme";
 import { useSegue } from "./hooks/useSegue";
 import { TrackSlot } from "./components/TrackSlot";
@@ -12,7 +13,7 @@ export function App() {
     tracks,
     plan,
     opts,
-    playhead,
+    subscribe,
     mix,
     playing,
     planning,
@@ -30,13 +31,16 @@ export function App() {
 
   const { A, B } = tracks;
 
-  const region = (slot: "A" | "B") => {
-    if (!plan) return null;
-    const start = slot === "A" ? plan.mixStartA : plan.mixStartB;
-    const len = slot === "A" ? plan.transLen : plan.transLen * (plan.warp || 1);
-    return { start, end: start + len };
-  };
-  const headOf = (slot: "A" | "B") => (playhead && playhead.slot === slot ? playhead.pos : null);
+  // Memoized so the waveforms' (expensive) static redraw isn't re-triggered on
+  // every coarse re-render — only when the plan actually changes.
+  const regionA = useMemo(
+    () => (plan ? { start: plan.mixStartA, end: plan.mixStartA + plan.transLen } : null),
+    [plan],
+  );
+  const regionB = useMemo(
+    () => (plan ? { start: plan.mixStartB, end: plan.mixStartB + plan.transLen * (plan.warp || 1) } : null),
+    [plan],
+  );
 
   const activeStep = (() => {
     if (!plan || !mix || mix.phase === "runup") return -1;
@@ -135,22 +139,24 @@ export function App() {
             {A && (
               <Waveform
                 features={A.features}
-                region={region("A")}
+                region={regionA}
                 label="Track A"
                 cursor={plan ? plan.mixStartA : A.cursor}
                 cursorLabel={plan ? "mix out" : null}
-                playhead={headOf("A")}
+                slot="A"
+                subscribe={subscribe}
                 onSeek={(t) => setMarker("A", t)}
               />
             )}
             {B && (
               <Waveform
                 features={B.features}
-                region={region("B")}
+                region={regionB}
                 label="Track B"
                 cursor={B.cursor}
                 cursorLabel={plan ? "mix in" : null}
-                playhead={headOf("B")}
+                slot="B"
+                subscribe={subscribe}
                 onSeek={(t) => setMarker("B", t)}
               />
             )}
@@ -175,7 +181,7 @@ export function App() {
 
         {plan && (mix || playing === "mix" || playing === "transition") && (
           <div style={{ marginBottom: 16 }}>
-            <MixerStrip mix={mix} />
+            <MixerStrip mix={mix} subscribe={subscribe} />
           </div>
         )}
 

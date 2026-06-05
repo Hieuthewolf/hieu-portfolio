@@ -1,6 +1,7 @@
 import { useEffect, useRef, type MouseEvent } from "react";
 import { theme } from "../theme";
 import { fmt } from "../utils/format";
+import type { PlayUpdate } from "../audio/engine";
 import type { AudioFeatures } from "../audio/types";
 
 const SECTION_COLOR: Record<string, string> = {
@@ -17,27 +18,38 @@ interface WaveformProps {
   label?: string;
   cursor: number | null;
   cursorLabel?: string | null;
-  playhead: number | null; // 0..1
+  slot: "A" | "B";
+  subscribe: (cb: (f: PlayUpdate | null) => void) => () => void;
   onSeek?: (time: number) => void;
 }
 
 const HEIGHT = 96;
 const RIBBON = 14;
 
-export function Waveform({ features, region, label, cursor, cursorLabel, playhead, onSeek }: WaveformProps) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+export function Waveform({ features, region, label, cursor, cursorLabel, slot, subscribe, onSeek }: WaveformProps) {
+  const baseRef = useRef<HTMLCanvasElement | null>(null);
+  const overlayRef = useRef<HTMLCanvasElement | null>(null);
+  const dimsRef = useRef({ w: 0, dpr: 1 });
 
+  // Static layers (section ribbon, region, peaks, cursor). These are the
+  // expensive draws — hundreds of stroked segments — so they run only when the
+  // track, region, or cursor actually change, never per playback frame.
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
+    const base = baseRef.current;
+    const overlay = overlayRef.current;
+    if (!base || !overlay) return;
+    const ctx = base.getContext("2d");
     if (!ctx) return;
 
     const dpr = window.devicePixelRatio || 1;
-    const w = canvas.clientWidth;
+    const w = base.clientWidth;
     const h = HEIGHT;
-    canvas.width = w * dpr;
-    canvas.height = h * dpr;
+    // Keep both stacked canvases at identical resolution.
+    for (const cv of [base, overlay]) {
+      cv.width = w * dpr;
+      cv.height = h * dpr;
+    }
+    dimsRef.current = { w, dpr };
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
 
@@ -88,17 +100,28 @@ export function Waveform({ features, region, label, cursor, cursorLabel, playhea
       ctx.stroke();
       ctx.lineWidth = 1;
     }
+  }, [features, region, label, cursor, cursorLabel]);
 
-    // Playhead.
-    if (playhead != null) {
-      const px = playhead * w;
+  // Playhead. Driven imperatively by per-frame engine updates — clear + one
+  // line on the overlay canvas, so a moving playhead costs no React renders.
+  useEffect(() => {
+    return subscribe((f) => {
+      const overlay = overlayRef.current;
+      if (!overlay) return;
+      const ctx = overlay.getContext("2d");
+      if (!ctx) return;
+      const { w, dpr } = dimsRef.current;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, HEIGHT);
+      if (!f || f.slot !== slot) return;
+      const px = f.head * w;
       ctx.strokeStyle = theme.ink;
       ctx.beginPath();
-      ctx.moveTo(px, waveTop);
-      ctx.lineTo(px, h);
+      ctx.moveTo(px, RIBBON);
+      ctx.lineTo(px, HEIGHT);
       ctx.stroke();
-    }
-  }, [features, region, label, cursor, cursorLabel, playhead]);
+    });
+  }, [subscribe, slot]);
 
   const handleClick = (e: MouseEvent<HTMLCanvasElement>) => {
     if (!onSeek) return;
@@ -124,17 +147,24 @@ export function Waveform({ features, region, label, cursor, cursorLabel, playhea
           {cursorLabel ? ` · ${cursorLabel}` : ""}
         </div>
       )}
-      <canvas
-        ref={canvasRef}
-        onClick={handleClick}
-        style={{
-          width: "100%",
-          height: HEIGHT,
-          display: "block",
-          cursor: onSeek ? "text" : "default",
-          borderRadius: 8,
-        }}
-      />
+      <div style={{ position: "relative", width: "100%", height: HEIGHT }}>
+        <canvas
+          ref={baseRef}
+          style={{ position: "absolute", inset: 0, width: "100%", height: HEIGHT, display: "block", borderRadius: 8 }}
+        />
+        <canvas
+          ref={overlayRef}
+          onClick={handleClick}
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: HEIGHT,
+            display: "block",
+            cursor: onSeek ? "text" : "default",
+          }}
+        />
+      </div>
       <div
         style={{
           display: "flex",
