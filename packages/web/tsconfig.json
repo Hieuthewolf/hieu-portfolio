@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "types": ["vite/client"],
+    "noEmit": true,
+    // react-relay / relay-runtime v18 expose no usable types under this pnpm
+    // layout (and @types/react-relay doesn't exist).
+    "noImplicitAny": false,
+    // The Segue DSP kernel (src/segue/audio) indexes typed arrays in tight
+    // loops; noUncheckedIndexedAccess buries that math in non-null assertions
+    // for no real safety gain, so it's relaxed here.
+    "noUncheckedIndexedAccess": false
+  },
+  "include": ["src"]
+}

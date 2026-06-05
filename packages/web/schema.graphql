@@ -1,0 +1,33 @@
+type Query {
+  profile: Profile!
+  projects: [Project!]!
+}
+
+type Profile {
+  name: String!
+  role: String!
+  tagline: String!
+  location: String!
+  education: String!
+  email: String!
+  github: String!
+  linkedin: String!
+  skills: [SkillGroup!]!
+}
+
+type SkillGroup {
+  group: String!
+  items: [String!]!
+}
+
+type Project {
+  id: ID!
+  index: String!
+  year: String!
+  title: String!
+  org: String!
+  blurb: String!
+  decision: String!
+  metrics: [String!]!
+  tags: [String!]!
+}

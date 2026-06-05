@@ -1,0 +1,32 @@
+{
+  "name": "@portfolio/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "relay": "relay-compiler",
+    "build": "relay-compiler && tsc -p tsconfig.json --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "relay-compiler && tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-relay": "^18.0.0",
+    "relay-runtime": "^18.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "babel-plugin-relay": "^18.0.0",
+    "graphql": "^16.9.0",
+    "relay-compiler": "^18.0.0",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.0",
+    "vite-plugin-relay": "^2.1.0",
+    "vitest": "^2.0.5"
+  }
+}
