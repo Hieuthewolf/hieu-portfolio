@@ -11,7 +11,8 @@ A personal portfolio, built as a pnpm monorepo, with an AI "DJ coach" (Segue) li
 - `packages/server` — Node + GraphQL Yoga. The schema (profile/projects) and the Segue
   transition **planner** (`src/planner/`). Used for local dev.
 - `api/graphql.ts` — the **deployed** GraphQL endpoint as a Vercel serverless function.
-  It inlines the schema + planner so it bundles cleanly. (See "Known duplication" below.)
+  A thin Yoga wrapper that imports the schema (and therefore the data + planner)
+  from `packages/server`; Vercel's runtime bundles it. Single source of truth.
 
 Routing is a deliberate one-liner, not a router library: `web/src/App.tsx` checks
 `window.location.pathname` — `/segue` renders the Segue app, everything else renders the
@@ -64,12 +65,17 @@ The browser does all audio DSP + section detection and sends only numbers/labels
 deterministic code resolves exact beat-aligned timestamps and computes harmonic compatibility
 — never trusting those to the model. The API key lives only on the server.
 
-## Known duplication (good first refactor)
+## Schema / planner: one source of truth
 
-The planner + portfolio data exist in two places: `packages/server/src/` (local dev) and
-inlined in `api/graphql.ts` (deploy). This was deliberate for a clean first deploy. A nice
-follow-up: extract a shared `packages/data` (or have the function import from
-`packages/server`) so there's a single source of truth.
+The schema, portfolio data, and planner live only in `packages/server/src/`. The deployed
+function `api/graphql.ts` imports the schema from there and Vercel's runtime bundles it — so
+local dev and deploy can't drift. `api/` is not covered by `pnpm typecheck` (no tsconfig
+includes it), so if you change that import, sanity-check it bundles, e.g.:
+
+```bash
+node_modules/.pnpm/esbuild@*/node_modules/esbuild/bin/esbuild \
+  api/graphql.ts --bundle --platform=node --format=esm --outfile=/dev/null
+```
 
 ## Conventions
 
