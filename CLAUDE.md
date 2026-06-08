@@ -95,6 +95,9 @@ from the compiled `dist`. Don't reintroduce an inlined copy in `api/graphql.ts`.
 - **Concise comments, and only where they earn it.** Explain *why*, not *what* the code
   already says. Delete stale comments rather than letting them drift.
 - Favor readability over cleverness; match the style of the surrounding file.
+- **Surgical edits.** Change only what the task needs — don't refactor adjacent code or
+  delete pre-existing dead code you didn't create; if you spot it, mention it rather than
+  removing it.
 - **Work toward a verifiable goal, then loop until it's met.** For a bug, write a failing test
   that reproduces it, then make it pass; keep the suite green before and after a refactor.
   Lean on `pnpm test`/`typecheck` as the success criteria rather than eyeballing "looks done".
