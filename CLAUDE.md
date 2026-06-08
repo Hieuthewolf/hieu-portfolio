@@ -85,6 +85,9 @@ follow-up: extract a shared `packages/data` (or have the function import from
 - **Concise comments, and only where they earn it.** Explain *why*, not *what* the code
   already says. Delete stale comments rather than letting them drift.
 - Favor readability over cleverness; match the style of the surrounding file.
+- **Work toward a verifiable goal, then loop until it's met.** For a bug, write a failing test
+  that reproduces it, then make it pass; keep the suite green before and after a refactor.
+  Lean on `pnpm test`/`typecheck` as the success criteria rather than eyeballing "looks done".
 
 ### React
 
@@ -109,3 +112,6 @@ follow-up: extract a shared `packages/data` (or have the function import from
   local commands — just finish the task and report what you did.
 - Still branch/confirm before **outward-facing or hard-to-reverse** actions (pushing,
   deploying, deleting) unless explicitly told to go ahead.
+- **Autonomy isn't license to guess.** On genuine ambiguity or a likely-wrong assumption,
+  surface it or ask — don't silently pick an interpretation and run. If a simpler approach
+  exists than what was asked, say so before building the complex one.
