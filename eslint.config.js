@@ -10,6 +10,7 @@ export default tseslint.config(
       "**/__generated__/**",
       "**/*.config.js",
       "**/*.config.ts",
+      ".vercel/**",
     ],
   },
 );

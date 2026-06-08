@@ -8,10 +8,12 @@ A personal portfolio, built as a pnpm monorepo, with an AI "DJ coach" (Segue) li
 
 - `packages/web` — Vite + React + TypeScript. The portfolio (data via **Relay/GraphQL**)
   **and** Segue, which lives at `src/segue/` and renders at the `/segue` route.
-- `packages/server` — Node + GraphQL Yoga. The schema (profile/projects) and the Segue
-  transition **planner** (`src/planner/`). Used for local dev.
-- `api/graphql.ts` — the **deployed** GraphQL endpoint as a Vercel serverless function.
-  It inlines the schema + planner so it bundles cleanly. (See "Known duplication" below.)
+- `packages/server` — Node + GraphQL Yoga. The **single source of truth** for the schema
+  (profile/projects) and the Segue transition **planner** (`src/planner/`). Runs the local
+  dev server, and the deployed function imports from it.
+- `api/graphql.ts` — the **deployed** GraphQL endpoint as a Vercel serverless function. A
+  thin wrapper that imports the schema from `packages/server`'s *compiled* output
+  (`dist/schema.js`). (See "Deploy" — importing the `.ts` source crashes at runtime.)
 
 Routing is a deliberate one-liner, not a router library: `web/src/App.tsx` checks
 `window.location.pathname` — `/segue` renders the Segue app, everything else renders the
@@ -52,6 +54,15 @@ One Vercel project, importing this repo at the root.
 - Web is served static (`packages/web/dist`); `api/graphql.ts` is the serverless GraphQL
   function. Build + output are set in the root `vercel.json`, which also has a SPA rewrite
   (`/((?!api/).*) → /index.html`) so `/segue` deep-links work.
+- **The function imports `packages/server`'s compiled `dist`, so `vercel.json`'s
+  `buildCommand` builds the server first** (`pnpm --filter @portfolio/server build`) before
+  the web build. Import the *compiled* `dist`, never `packages/server/src/*.ts`.
+- **`api/package.json` sets `"type": "module"` — don't remove it.** `packages/server` is pure
+  ESM; without this the handler compiles to CommonJS and `require()`-ing the ESM `dist` throws
+  `ERR_REQUIRE_ESM` → `FUNCTION_INVOCATION_FAILED` (HTTP 500). Local Node (≥22) allows
+  require-of-ESM so it won't reproduce locally — **verify function changes on a Vercel preview
+  deploy** (`vercel build && vercel deploy --prebuilt`, then curl the preview URL), not on
+  `main`, which deploys straight to production.
 - Env vars on the project: `VITE_GRAPHQL_ENDPOINT = /api/graphql`, and
   `ANTHROPIC_API_KEY = sk-ant-…` (server-side only). **Without the key the planner falls back
   to a deterministic heuristic** — the app never breaks.
@@ -64,12 +75,11 @@ The browser does all audio DSP + section detection and sends only numbers/labels
 deterministic code resolves exact beat-aligned timestamps and computes harmonic compatibility
 — never trusting those to the model. The API key lives only on the server.
 
-## Known duplication (good first refactor)
+## Single source of truth
 
-The planner + portfolio data exist in two places: `packages/server/src/` (local dev) and
-inlined in `api/graphql.ts` (deploy). This was deliberate for a clean first deploy. A nice
-follow-up: extract a shared `packages/data` (or have the function import from
-`packages/server`) so there's a single source of truth.
+The schema, portfolio data, and planner live only in `packages/server`. The local dev server
+(`src/index.ts`) and the deployed function (`api/graphql.ts`) both import them — the function
+from the compiled `dist`. Don't reintroduce an inlined copy in `api/graphql.ts`.
 
 ## Conventions
 

@@ -5,3 +5,4 @@ dist/
 .env
 packages/web/src/__generated__/*
 !packages/web/src/__generated__/.gitkeep
+.vercel
