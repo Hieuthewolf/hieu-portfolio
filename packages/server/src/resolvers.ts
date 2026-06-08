@@ -1,6 +1,7 @@
 import { profile, projects } from "./data.js";
 import { plan } from "./planner/index.js";
-import type { PlanInput } from "./planner/types.js";
+import { planSet } from "./planner/setIndex.js";
+import type { PlanInput, PlanSetInput } from "./planner/types.js";
 
 export const resolvers = {
   Query: {
@@ -9,5 +10,6 @@ export const resolvers = {
   },
   Mutation: {
     planTransition: (_parent: unknown, args: { input: PlanInput }) => plan(args.input),
+    planSet: (_parent: unknown, args: { input: PlanSetInput }) => planSet(args.input),
   },
 };

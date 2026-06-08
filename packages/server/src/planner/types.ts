@@ -87,3 +87,61 @@ export interface TransitionPlan {
   compatible: boolean;
   source: "llm" | "heuristic";
 }
+
+// ---- Set Builder: ordering N tracks into a set by energy arc + mixability ----
+
+/** A 3-number digest of a track's RMS energy curve, comparable across tracks. */
+export interface EnergySummary {
+  mean: number; // absolute mean RMS (loudness rank)
+  peak: number; // absolute max RMS
+  arc: number; // (lastThird − firstThird)/peak → >0 rising, ~0 flat, <0 falling
+}
+
+export type SetRole = "opener" | "builder" | "peak" | "bridge" | "closer";
+
+export interface SetTrack {
+  id: string;
+  features: TrackFeatures;
+  energy: EnergySummary;
+}
+
+export interface SetOptions extends PlanOptions {
+  introId?: string | null;
+  outroId?: string | null;
+}
+
+export interface PlanSetInput {
+  tracks: SetTrack[];
+  options: SetOptions;
+}
+
+export interface SetRoleEntry {
+  id: string;
+  role: SetRole;
+}
+
+/** What the LLM decides for a set (judgment): order, a role per track, a one-line story. */
+export interface SetStrategy {
+  order: string[];
+  roles: SetRoleEntry[];
+  narrative: string;
+}
+
+/** Deterministic, per-adjacency compatibility summary (never trusted to the LLM). */
+export interface SetGap {
+  fromId: string;
+  toId: string;
+  technique: Technique;
+  difficulty: Difficulty;
+  bpmDiff: number;
+  compatible: boolean;
+  risk: boolean;
+}
+
+export interface SetPlan {
+  order: string[];
+  roles: SetRoleEntry[];
+  narrative: string;
+  gaps: SetGap[];
+  source: "llm" | "heuristic";
+}

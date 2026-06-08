@@ -8,7 +8,7 @@ import {
   keyToCamelot,
   onsetEnvelope,
 } from "./dsp";
-import type { AudioFeatures, EnergyEnvelope, Section } from "./types";
+import type { AudioFeatures, EnergyEnvelope, EnergySummary, Section } from "./types";
 
 /** Analyze a representative central window so intros/outros don't skew tempo + key. */
 function centralWindow(mono: Float32Array, sr: number): { seg: Float32Array; startSec: number } {
@@ -74,6 +74,21 @@ export function detectSections({ energy, beat, phase, duration }: SectionInputs)
   });
 }
 
+/** A 3-number digest of the energy curve (absolute, so it's comparable across tracks). */
+export function summarizeEnergy(e: EnergyEnvelope): EnergySummary {
+  const n = e.vals.length;
+  if (n === 0) return { mean: 0, peak: e.max, arc: 0 };
+  let sum = 0;
+  for (let i = 0; i < n; i++) sum += e.vals[i];
+  const third = Math.max(1, Math.floor(n / 3));
+  let firstSum = 0;
+  let lastSum = 0;
+  for (let i = 0; i < third; i++) firstSum += e.vals[i];
+  for (let i = n - third; i < n; i++) lastSum += e.vals[i];
+  const arc = e.max > 0 ? (lastSum - firstSum) / third / e.max : 0;
+  return { mean: sum / n, peak: e.max, arc };
+}
+
 export function analyzeBuffer(buffer: AudioBuffer): AudioFeatures {
   const sr = buffer.sampleRate;
   const mono = downmix(buffer);
@@ -98,6 +113,7 @@ export function analyzeBuffer(buffer: AudioBuffer): AudioFeatures {
     duration: buffer.duration,
     peaks: computePeaks(mono, 1000),
     energy,
+    energySummary: summarizeEnergy(energy),
     sections,
   };
 }

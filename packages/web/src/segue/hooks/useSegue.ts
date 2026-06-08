@@ -84,7 +84,13 @@ export function useSegue() {
       try {
         const buffer = await engine.decode(file);
         const features = analyzeBuffer(buffer);
-        const track: Track = { name: file.name, buffer, features, cursor: null };
+        const track: Track = {
+          id: crypto.randomUUID(),
+          name: file.name,
+          buffer,
+          features,
+          cursor: null,
+        };
         setTracks((prev) => (slot === "A" ? { ...prev, A: track } : { ...prev, B: track }));
       } catch (e) {
         setError(`Could not read ${file.name}: ${(e as Error).message}`);
@@ -207,6 +213,22 @@ export function useSegue() {
     [engine, onUpdate, onEnd, stop],
   );
 
+  // Load an already-decoded track straight into a slot (the Set Builder hand-off).
+  // Clears any existing plan so the coach starts fresh on the new pair.
+  const loadTrack = useCallback(
+    (slot: Slot, track: Track) => {
+      stop();
+      setPlan(null);
+      setError(null);
+      setTracks((prev) =>
+        slot === "A"
+          ? { ...prev, A: { ...track, cursor: null } }
+          : { ...prev, B: { ...track, cursor: null } },
+      );
+    },
+    [stop],
+  );
+
   const setMarker = useCallback((slot: Slot, time: number) => {
     setTracks((prev) => {
       const t = prev[slot];
@@ -241,5 +263,6 @@ export function useSegue() {
     playTransition,
     playTrack,
     setMarker,
+    loadTrack,
   };
 }

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { theme } from "./theme";
 import { useSegue } from "./hooks/useSegue";
 import { TrackSlot } from "./components/TrackSlot";
@@ -7,6 +7,10 @@ import { CoachPanel } from "./components/CoachPanel";
 import { MixerStrip } from "./components/MixerStrip";
 import { Waveform } from "./components/Waveform";
 import { GlossaryPanel } from "./components/GlossaryPanel";
+import { SetBuilder } from "./components/SetBuilder";
+import type { Track } from "./audio/types";
+
+type Mode = "coach" | "set";
 
 export function App() {
   const {
@@ -27,7 +31,17 @@ export function App() {
     playTransition,
     playTrack,
     setMarker,
+    loadTrack,
   } = useSegue();
+
+  const [mode, setMode] = useState<Mode>("coach");
+
+  // Set Builder hand-off: load the chosen pair into the A/B deck and switch to the coach.
+  const rehearse = (from: Track, to: Track) => {
+    loadTrack("A", from);
+    loadTrack("B", to);
+    setMode("coach");
+  };
 
   const { A, B } = tracks;
 
@@ -38,7 +52,10 @@ export function App() {
     [plan],
   );
   const regionB = useMemo(
-    () => (plan ? { start: plan.mixStartB, end: plan.mixStartB + plan.transLen * (plan.warp || 1) } : null),
+    () =>
+      plan
+        ? { start: plan.mixStartB, end: plan.mixStartB + plan.transLen * (plan.warp || 1) }
+        : null,
     [plan],
   );
 
@@ -80,8 +97,18 @@ export function App() {
           >
             Segue · AI DJ Coach
           </div>
-          <h1 style={{ margin: 0, fontFamily: theme.serif, fontSize: 40, fontWeight: 600, lineHeight: 1.1 }}>
-            Two tracks in. A plan to blend them out.
+          <h1
+            style={{
+              margin: 0,
+              fontFamily: theme.serif,
+              fontSize: 40,
+              fontWeight: 600,
+              lineHeight: 1.1,
+            }}
+          >
+            {mode === "coach"
+              ? "Two tracks in. A plan to blend them out."
+              : "Drop your tracks. Build the set."}
           </h1>
           <p
             style={{
@@ -93,105 +120,135 @@ export function App() {
               color: theme.muted,
             }}
           >
-            Load the track that's playing and the one coming next. Segue reads the tempo, key, and structure of
-            each, then asks Claude to plan a phrase-aligned transition — and walks you through it, step by step.
+            {mode === "coach"
+              ? "Load the track that's playing and the one coming next. Segue reads the tempo, key, and structure of each, then asks Claude to plan a phrase-aligned transition — and walks you through it, step by step."
+              : "Drop in a handful of tracks. Segue orders them into a set that rides an energy arc and keeps neighbours mixable, then lets you rehearse any transition in the coach."}
           </p>
+
+          <div style={{ display: "flex", gap: 8, marginTop: 22 }}>
+            {(["coach", "set"] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                style={{
+                  fontFamily: theme.mono,
+                  fontSize: 12,
+                  border: `1px solid ${mode === m ? theme.ink : theme.line}`,
+                  background: mode === m ? theme.ink : "transparent",
+                  color: mode === m ? theme.surface : theme.ink,
+                  borderRadius: 999,
+                  padding: "7px 16px",
+                  cursor: "pointer",
+                }}
+              >
+                {m === "coach" ? "Transition coach" : "Set builder"}
+              </button>
+            ))}
+          </div>
         </header>
 
-        {error && (
-          <div
-            style={{
-              fontFamily: theme.sans,
-              fontSize: 14,
-              color: "#B5532F",
-              background: "#FBEEE8",
-              border: "1px solid #E8C9BC",
-              borderRadius: 10,
-              padding: "10px 14px",
-              marginBottom: 20,
-            }}
-          >
-            {error}
-          </div>
-        )}
+        {mode === "set" && <SetBuilder onRehearse={rehearse} />}
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
-          <TrackSlot
-            tag="A"
-            role="playing"
-            track={A}
-            isPlaying={playing === "A"}
-            onFile={(file) => void loadFile("A", file)}
-            onPlayToggle={() => playTrack("A")}
-          />
-          <TrackSlot
-            tag="B"
-            role="incoming"
-            track={B}
-            isPlaying={playing === "B"}
-            onFile={(file) => void loadFile("B", file)}
-            onPlayToggle={() => playTrack("B")}
-          />
-        </div>
-
-        {(A || B) && (
-          <div style={{ display: "grid", gap: 10, marginBottom: 16 }}>
-            {A && (
-              <Waveform
-                features={A.features}
-                region={regionA}
-                label="Track A"
-                cursor={plan ? plan.mixStartA : A.cursor}
-                cursorLabel={plan ? "mix out" : null}
-                slot="A"
-                subscribe={subscribe}
-                onSeek={(t) => setMarker("A", t)}
-              />
+        {mode === "coach" && (
+          <>
+            {error && (
+              <div
+                style={{
+                  fontFamily: theme.sans,
+                  fontSize: 14,
+                  color: "#B5532F",
+                  background: "#FBEEE8",
+                  border: "1px solid #E8C9BC",
+                  borderRadius: 10,
+                  padding: "10px 14px",
+                  marginBottom: 20,
+                }}
+              >
+                {error}
+              </div>
             )}
-            {B && (
-              <Waveform
-                features={B.features}
-                region={regionB}
-                label="Track B"
-                cursor={B.cursor}
-                cursorLabel={plan ? "mix in" : null}
-                slot="B"
-                subscribe={subscribe}
-                onSeek={(t) => setMarker("B", t)}
+
+            <div
+              style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}
+            >
+              <TrackSlot
+                tag="A"
+                role="playing"
+                track={A}
+                isPlaying={playing === "A"}
+                onFile={(file) => void loadFile("A", file)}
+                onPlayToggle={() => playTrack("A")}
               />
+              <TrackSlot
+                tag="B"
+                role="incoming"
+                track={B}
+                isPlaying={playing === "B"}
+                onFile={(file) => void loadFile("B", file)}
+                onPlayToggle={() => playTrack("B")}
+              />
+            </div>
+
+            {(A || B) && (
+              <div style={{ display: "grid", gap: 10, marginBottom: 16 }}>
+                {A && (
+                  <Waveform
+                    features={A.features}
+                    region={regionA}
+                    label="Track A"
+                    cursor={plan ? plan.mixStartA : A.cursor}
+                    cursorLabel={plan ? "mix out" : null}
+                    slot="A"
+                    subscribe={subscribe}
+                    onSeek={(t) => setMarker("A", t)}
+                  />
+                )}
+                {B && (
+                  <Waveform
+                    features={B.features}
+                    region={regionB}
+                    label="Track B"
+                    cursor={B.cursor}
+                    cursorLabel={plan ? "mix in" : null}
+                    slot="B"
+                    subscribe={subscribe}
+                    onSeek={(t) => setMarker("B", t)}
+                  />
+                )}
+              </div>
             )}
-          </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <Controls
+                opts={opts}
+                canPlan={!!A && !!B}
+                hasPlan={!!plan}
+                planning={planning}
+                isMixing={playing === "mix" || playing === "transition"}
+                set={set}
+                onFind={find}
+                onPlayMix={playMix}
+                onPlayTransition={playTransition}
+                onStop={stop}
+                onNudge={nudge}
+              />
+            </div>
+
+            {plan && (mix || playing === "mix" || playing === "transition") && (
+              <div style={{ marginBottom: 16 }}>
+                <MixerStrip mix={mix} subscribe={subscribe} />
+              </div>
+            )}
+
+            {plan && A && B && (
+              <div style={{ marginBottom: 28 }}>
+                <CoachPanel plan={plan} a={A.features} b={B.features} activeStep={activeStep} />
+              </div>
+            )}
+
+            <GlossaryPanel />
+          </>
         )}
-
-        <div style={{ marginBottom: 16 }}>
-          <Controls
-            opts={opts}
-            canPlan={!!A && !!B}
-            hasPlan={!!plan}
-            planning={planning}
-            isMixing={playing === "mix" || playing === "transition"}
-            set={set}
-            onFind={find}
-            onPlayMix={playMix}
-            onPlayTransition={playTransition}
-            onStop={stop}
-            onNudge={nudge}
-          />
-        </div>
-
-        {plan && (mix || playing === "mix" || playing === "transition") && (
-          <div style={{ marginBottom: 16 }}>
-            <MixerStrip mix={mix} subscribe={subscribe} />
-          </div>
-        )}
-
-        {plan && A && B && (
-          <div style={{ marginBottom: 28 }}>
-            <CoachPanel plan={plan} a={A.features} b={B.features} activeStep={activeStep} />
-          </div>
-        )}
-
-        <GlossaryPanel />
       </div>
     </div>
   );

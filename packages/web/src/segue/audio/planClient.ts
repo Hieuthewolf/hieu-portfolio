@@ -15,8 +15,15 @@ import type {
   PlanOptions,
   PlaybookStep,
   Section,
+  SetGap,
+  SetMoment,
+  SetOptions,
+  SetPlan,
+  SetRole,
+  SetRoleEntry,
   Strategy,
   Technique,
+  Track,
   TransitionPlan,
 } from "./types";
 
@@ -215,5 +222,151 @@ export function strategyFromPlan(p: TransitionPlan): Strategy {
     rationale: p.rationale,
     coachNote: p.coachNote,
     playbook: p.playbook,
+  };
+}
+
+// ---- Set Builder ----
+
+const SET_MUTATION = `
+  mutation PlanSet($input: PlanSetInput!) {
+    planSet(input: $input) {
+      order
+      roles { id role }
+      narrative
+      gaps { fromId toId technique difficulty bpmDiff compatible risk }
+      source
+    }
+  }`;
+
+function toSetTrackInput(t: Track) {
+  return { id: t.id, features: toFeaturesInput(t.features), energy: t.features.energySummary };
+}
+
+interface SetGraphQLResponse {
+  data?: { planSet: SetPlan };
+  errors?: Array<{ message: string }>;
+}
+
+export async function requestSetPlan(tracks: Track[], opts: SetOptions): Promise<SetPlan> {
+  const input = {
+    tracks: tracks.map(toSetTrackInput),
+    options: {
+      skill: opts.skill,
+      setMoment: opts.setMoment,
+      beatmatch: opts.beatmatch,
+      phraseBars: opts.phraseBars,
+      introId: opts.introId ?? null,
+      outroId: opts.outroId ?? null,
+    },
+  };
+  const res = await fetch(ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query: SET_MUTATION, variables: { input } }),
+  });
+  const json = (await res.json()) as SetGraphQLResponse;
+  if (json.errors?.length) throw new Error(json.errors[0]!.message);
+  if (!json.data) throw new Error("empty set planner response");
+  return json.data.planSet;
+}
+
+// Local mirror of the server's deterministic layer: instant gap recompute on a
+// manual reorder, and a full offline fallback when the planSet request fails.
+
+function bpmDiffOf(a: AudioFeatures, b: AudioFeatures): number {
+  return Math.abs(a.bpm - b.bpm) / ((a.bpm + b.bpm) / 2);
+}
+
+/** One adjacency's compatibility summary — reuses the local heuristic + Camelot check. */
+export function localGap(from: Track, to: Track, opts: PlanOptions): SetGap {
+  const strat = heuristicStrategy(from.features, to.features, opts);
+  const d = bpmDiffOf(from.features, to.features);
+  const compatible = camelotCompatible(from.features.camelot, to.features.camelot);
+  return {
+    fromId: from.id,
+    toId: to.id,
+    technique: strat.technique,
+    difficulty: strat.difficulty,
+    bpmDiff: d,
+    compatible,
+    risk: !compatible || d >= 0.08,
+  };
+}
+
+export function gapsFor(order: Track[], opts: PlanOptions): SetGap[] {
+  const gaps: SetGap[] = [];
+  for (let i = 0; i < order.length - 1; i++) gaps.push(localGap(order[i]!, order[i + 1]!, opts));
+  return gaps;
+}
+
+export function arcTarget(moment: SetMoment, p: number): number {
+  if (moment === "warmup") return 0.2 + 0.6 * p;
+  if (moment === "cooldown") return 0.8 - 0.6 * p;
+  return 0.55 + 0.45 * Math.sin(Math.PI * p); // peak
+}
+
+function rolesByArc(order: Track[]): SetRoleEntry[] {
+  const n = order.length;
+  let peakIdx = -1;
+  let peakE = -Infinity;
+  for (let i = 1; i < n - 1; i++) {
+    if (order[i]!.features.energySummary.mean > peakE) {
+      peakE = order[i]!.features.energySummary.mean;
+      peakIdx = i;
+    }
+  }
+  return order.map((t, i) => {
+    let role: SetRole;
+    if (i === 0) role = "opener";
+    else if (i === n - 1) role = "closer";
+    else if (i === peakIdx) role = "peak";
+    else if (i < peakIdx) role = "builder";
+    else role = "bridge";
+    return { id: t.id, role };
+  });
+}
+
+/**
+ * Offline ordering fallback. Simpler than the server (rank-match energy to the
+ * arc target per slot, honour pins) — good enough when the network is down.
+ */
+export function localSetPlan(tracks: Track[], opts: SetOptions): SetPlan {
+  const pinned = new Set([opts.introId, opts.outroId].filter(Boolean) as string[]);
+  const free = tracks.filter((t) => !pinned.has(t.id));
+  const n = tracks.length;
+
+  // Sort free tracks by energy, then place into interior slots whose arc targets
+  // are also sorted — so energy follows the arc shape.
+  const byEnergy = [...free].sort(
+    (a, b) => a.features.energySummary.mean - b.features.energySummary.mean,
+  );
+  const intro = opts.introId ? tracks.find((t) => t.id === opts.introId) : undefined;
+  const outro =
+    opts.outroId && opts.outroId !== opts.introId
+      ? tracks.find((t) => t.id === opts.outroId)
+      : undefined;
+
+  const interiorSlots: number[] = [];
+  for (let i = intro ? 1 : 0; i < n - (outro ? 1 : 0); i++) interiorSlots.push(i);
+  const slotsByTarget = [...interiorSlots].sort(
+    (i, j) =>
+      arcTarget(opts.setMoment, i / Math.max(1, n - 1)) -
+      arcTarget(opts.setMoment, j / Math.max(1, n - 1)),
+  );
+
+  const order: Track[] = new Array(n);
+  if (intro) order[0] = intro;
+  if (outro) order[n - 1] = outro;
+  slotsByTarget.forEach((slot, k) => {
+    order[slot] = byEnergy[k]!;
+  });
+
+  const filled = order.filter(Boolean);
+  return {
+    order: filled.map((t) => t.id),
+    roles: rolesByArc(filled),
+    narrative: `A ${n}-track set arranged offline along the ${opts.setMoment} energy arc.`,
+    gaps: gapsFor(filled, opts),
+    source: "heuristic",
   };
 }

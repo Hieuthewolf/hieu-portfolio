@@ -5,6 +5,13 @@ export interface EnergyEnvelope {
   max: number;
 }
 
+/** A 3-number digest of the energy curve, comparable across tracks (for set ordering). */
+export interface EnergySummary {
+  mean: number;
+  peak: number;
+  arc: number; // >0 rising, ~0 flat, <0 falling
+}
+
 export interface Section {
   kind: "intro" | "build" | "drop" | "breakdown" | "outro";
   startBar: number;
@@ -22,6 +29,7 @@ export interface AudioFeatures {
   duration: number;
   peaks: Array<[number, number]>; // [min, max] per bucket, for the waveform
   energy: EnergyEnvelope;
+  energySummary: EnergySummary;
   sections: Section[];
 }
 
@@ -84,8 +92,41 @@ export interface TransitionPlan {
 }
 
 export interface Track {
+  id: string;
   name: string;
   buffer: AudioBuffer;
   features: AudioFeatures;
   cursor: number | null;
+}
+
+// ---- Set Builder (mirrors packages/server/src/planner set types) ----
+
+export type SetRole = "opener" | "builder" | "peak" | "bridge" | "closer";
+
+export interface SetOptions extends PlanOptions {
+  introId?: string | null;
+  outroId?: string | null;
+}
+
+export interface SetRoleEntry {
+  id: string;
+  role: SetRole;
+}
+
+export interface SetGap {
+  fromId: string;
+  toId: string;
+  technique: Technique;
+  difficulty: Difficulty;
+  bpmDiff: number;
+  compatible: boolean;
+  risk: boolean;
+}
+
+export interface SetPlan {
+  order: string[];
+  roles: SetRoleEntry[];
+  narrative: string;
+  gaps: SetGap[];
+  source: "llm" | "heuristic";
 }

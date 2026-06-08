@@ -92,8 +92,60 @@ const typeDefs = /* GraphQL */ `
     source: String!
   }
 
+  # ---- Segue set builder ----
+
+  input EnergySummaryInput {
+    mean: Float!
+    peak: Float!
+    arc: Float!
+  }
+
+  input SetTrackInput {
+    id: ID!
+    features: TrackFeaturesInput!
+    energy: EnergySummaryInput!
+  }
+
+  input SetOptionsInput {
+    skill: String!
+    setMoment: String!
+    beatmatch: Boolean!
+    phraseBars: Int!
+    introId: ID
+    outroId: ID
+  }
+
+  input PlanSetInput {
+    tracks: [SetTrackInput!]!
+    options: SetOptionsInput!
+  }
+
+  type SetRoleEntry {
+    id: ID!
+    role: String!
+  }
+
+  type SetGap {
+    fromId: ID!
+    toId: ID!
+    technique: String!
+    difficulty: String!
+    bpmDiff: Float!
+    compatible: Boolean!
+    risk: Boolean!
+  }
+
+  type SetPlan {
+    order: [ID!]!
+    roles: [SetRoleEntry!]!
+    narrative: String!
+    gaps: [SetGap!]!
+    source: String!
+  }
+
   type Mutation {
     planTransition(input: PlanTransitionInput!): TransitionPlan!
+    planSet(input: PlanSetInput!): SetPlan!
   }
 `;
 

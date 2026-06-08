@@ -13,6 +13,7 @@ function feat(partial: Partial<AudioFeatures>): AudioFeatures {
     duration: 300,
     peaks: [],
     energy: { vals: new Float32Array(), hop: 1024, sr: 44100, max: 1 },
+    energySummary: { mean: 0.5, peak: 1, arc: 0 },
     sections: [],
     ...partial,
   };
