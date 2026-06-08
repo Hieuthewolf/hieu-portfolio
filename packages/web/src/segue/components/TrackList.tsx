@@ -1,5 +1,6 @@
 import { theme } from "../theme";
 import { fmt } from "../utils/format";
+import { suggestFix } from "../audio/fix";
 import { TransitionGap } from "./TransitionGap";
 import type { SetGap, Track } from "../audio/types";
 
@@ -152,7 +153,18 @@ export function TrackList({
             </div>
 
             {gaps && i < gaps.length && (
-              <TransitionGap gap={gaps[i]!} onClick={() => onGapClick(i)} />
+              <TransitionGap
+                gap={gaps[i]!}
+                tip={
+                  suggestFix(
+                    t.features.camelot,
+                    items[i + 1]!.features.camelot,
+                    gaps[i]!.bpmDiff,
+                    gaps[i]!.compatible,
+                  ).tip
+                }
+                onClick={() => onGapClick(i)}
+              />
             )}
           </div>
         );

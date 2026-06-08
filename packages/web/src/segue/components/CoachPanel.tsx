@@ -1,5 +1,6 @@
 import { theme } from "../theme";
 import { fmt } from "../utils/format";
+import { shiftCamelot, suggestFix } from "../audio/fix";
 import type { AudioFeatures, TransitionPlan } from "../audio/types";
 
 const DIFFICULTY_COLOR: Record<string, string> = {
@@ -13,9 +14,25 @@ interface CoachPanelProps {
   a: AudioFeatures;
   b: AudioFeatures;
   activeStep: number;
+  keyShift: number;
+  setKeyShift: (s: number) => void;
 }
 
-export function CoachPanel({ plan, a, b, activeStep }: CoachPanelProps) {
+const stepBtn = {
+  fontFamily: theme.mono,
+  fontSize: 13,
+  border: `1px solid ${theme.line}`,
+  background: "transparent",
+  color: theme.ink,
+  borderRadius: 7,
+  width: 26,
+  height: 26,
+  cursor: "pointer",
+};
+
+export function CoachPanel({ plan, a, b, activeStep, keyShift, setKeyShift }: CoachPanelProps) {
+  const fix = suggestFix(a.camelot, b.camelot, plan.bpmDiff, plan.compatible);
+  const showKeyShift = fix.problem === "key" || fix.problem === "both";
   return (
     <div
       style={{
@@ -27,8 +44,24 @@ export function CoachPanel({ plan, a, b, activeStep }: CoachPanelProps) {
         gap: 18,
       }}
     >
-      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
-        <h2 style={{ margin: 0, fontFamily: theme.serif, fontSize: 24, fontWeight: 600, color: theme.ink }}>
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "baseline",
+          justifyContent: "space-between",
+          gap: 8,
+        }}
+      >
+        <h2
+          style={{
+            margin: 0,
+            fontFamily: theme.serif,
+            fontSize: 24,
+            fontWeight: 600,
+            color: theme.ink,
+          }}
+        >
           {plan.technique}
         </h2>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -78,9 +111,81 @@ export function CoachPanel({ plan, a, b, activeStep }: CoachPanelProps) {
         {plan.warp !== 1 && <span>warp ×{plan.warp.toFixed(3)}</span>}
       </div>
 
-      <p style={{ margin: 0, fontFamily: theme.serif, fontSize: 17, lineHeight: 1.55, color: theme.ink }}>
+      <p
+        style={{
+          margin: 0,
+          fontFamily: theme.serif,
+          fontSize: 17,
+          lineHeight: 1.55,
+          color: theme.ink,
+        }}
+      >
         {plan.rationale}
       </p>
+
+      {fix.problem !== "none" && (
+        <div
+          style={{
+            display: "grid",
+            gap: 10,
+            background: "#FBEEE8",
+            border: "1px solid #E8C9BC",
+            borderRadius: 10,
+            padding: "12px 14px",
+          }}
+        >
+          <span
+            style={{
+              fontFamily: theme.mono,
+              fontSize: 10.5,
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+              color: "#B5532F",
+            }}
+          >
+            Risky — how to handle it
+          </span>
+          <div style={{ fontFamily: theme.sans, fontSize: 14, lineHeight: 1.55, color: theme.ink }}>
+            {fix.tip}
+          </div>
+          {showKeyShift && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <span style={{ fontFamily: theme.mono, fontSize: 11, color: theme.muted }}>
+                key shift (rehearsal)
+              </span>
+              <button
+                style={stepBtn}
+                onClick={() => setKeyShift(keyShift - 1)}
+                aria-label="shift down"
+              >
+                −
+              </button>
+              <span
+                style={{
+                  fontFamily: theme.mono,
+                  fontSize: 13,
+                  color: theme.ink,
+                  minWidth: 84,
+                  textAlign: "center",
+                }}
+              >
+                {keyShift > 0 ? `+${keyShift}` : keyShift} st →{" "}
+                {shiftCamelot(b.camelot, keyShift) ?? "?"}
+              </span>
+              <button
+                style={stepBtn}
+                onClick={() => setKeyShift(keyShift + 1)}
+                aria-label="shift up"
+              >
+                +
+              </button>
+              <span style={{ fontFamily: theme.mono, fontSize: 10.5, color: theme.muted }}>
+                also nudges tempo
+              </span>
+            </div>
+          )}
+        </div>
+      )}
 
       <div style={{ display: "grid", gap: 10 }}>
         {plan.playbook.map((step, i) => {
@@ -119,7 +224,14 @@ export function CoachPanel({ plan, a, b, activeStep }: CoachPanelProps) {
                 <span style={{ fontFamily: theme.mono, fontSize: 10.5, color: theme.muted }}>
                   bar {step.atBar}
                 </span>
-                <span style={{ fontFamily: theme.sans, fontSize: 14.5, lineHeight: 1.5, color: theme.ink }}>
+                <span
+                  style={{
+                    fontFamily: theme.sans,
+                    fontSize: 14.5,
+                    lineHeight: 1.5,
+                    color: theme.ink,
+                  }}
+                >
                   {step.action}
                 </span>
               </div>
@@ -140,7 +252,15 @@ export function CoachPanel({ plan, a, b, activeStep }: CoachPanelProps) {
           padding: "12px 14px",
         }}
       >
-        <span style={{ fontFamily: theme.mono, fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", color: theme.muted }}>
+        <span
+          style={{
+            fontFamily: theme.mono,
+            fontSize: 10.5,
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+            color: theme.muted,
+          }}
+        >
           Watch out
         </span>
         <div style={{ marginTop: 4 }}>{plan.coachNote}</div>

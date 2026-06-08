@@ -33,6 +33,8 @@ export function App() {
     playTrack,
     setMarker,
     loadTrack,
+    keyShift,
+    setKeyShift,
   } = useSegue();
 
   const [mode, setMode] = useState<Mode>("coach");
@@ -249,7 +251,14 @@ export function App() {
 
             {plan && A && B && (
               <div style={{ marginBottom: 28 }}>
-                <CoachPanel plan={plan} a={A.features} b={B.features} activeStep={activeStep} />
+                <CoachPanel
+                  plan={plan}
+                  a={A.features}
+                  b={B.features}
+                  activeStep={activeStep}
+                  keyShift={keyShift}
+                  setKeyShift={setKeyShift}
+                />
               </div>
             )}
 

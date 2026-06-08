@@ -2,12 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { analyzeBuffer } from "../audio/analyze";
 import { clamp, snapGrid } from "../audio/dsp";
 import { AudioEngine, type MixState, type PlayUpdate } from "../audio/engine";
-import {
-  heuristicStrategy,
-  requestPlan,
-  resolvePlan,
-  strategyFromPlan,
-} from "../audio/planClient";
+import { heuristicStrategy, requestPlan, resolvePlan, strategyFromPlan } from "../audio/planClient";
+import { suggestFix } from "../audio/fix";
 import type { PlanOptions, Track, TransitionPlan } from "../audio/types";
 
 type Slot = "A" | "B";
@@ -33,6 +29,8 @@ export function useSegue() {
   const [playing, setPlaying] = useState<Playing>(null);
   const [planning, setPlanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [keyShift, setKeyShift] = useState(0); // semitones applied to B in rehearsal playback
+  const keyShiftRef = useRef(0);
 
   // The engine emits a PlayUpdate every animation frame (~60fps). Routing that
   // through React state re-renders the whole tree (and re-draws both waveforms)
@@ -69,11 +67,24 @@ export function useSegue() {
   useEffect(() => {
     optsRef.current = opts;
   }, [opts]);
+  useEffect(() => {
+    keyShiftRef.current = keyShift;
+  }, [keyShift]);
 
   useEffect(() => () => engine.stop(), [engine]);
 
-  const applyPlan = useCallback((p: TransitionPlan) => {
+  const applyPlan = useCallback((p: TransitionPlan, prefillKeyShift = false) => {
     setPlan(p);
+    if (prefillKeyShift) {
+      // Suggest a key-shift for a fresh, clashy plan; leave it alone on re-resolve/nudge.
+      const { A, B } = tracksRef.current;
+      const shift =
+        A && B && !p.compatible
+          ? (suggestFix(A.features.camelot, B.features.camelot, p.bpmDiff, p.compatible).keyShift ??
+            0)
+          : 0;
+      setKeyShift(shift);
+    }
     setTracks((prev) => (prev.B ? { ...prev, B: { ...prev.B, cursor: p.mixStartB } } : prev));
   }, []);
 
@@ -106,10 +117,10 @@ export function useSegue() {
       setError(null);
       try {
         const p = await requestPlan(A.features, B.features, o); // LLM via GraphQL
-        applyPlan(p);
+        applyPlan(p, true);
       } catch {
         const strat = heuristicStrategy(A.features, B.features, o); // offline fallback
-        applyPlan(resolvePlan(A.features, B.features, strat, 0, "heuristic"));
+        applyPlan(resolvePlan(A.features, B.features, strat, 0, "heuristic"), true);
       } finally {
         setPlanning(false);
       }
@@ -188,14 +199,22 @@ export function useSegue() {
     const { A, B } = tracksRef.current;
     if (!A || !B || !planRef.current) return;
     setPlaying("mix");
-    void engine.playMix(A, B, planRef.current, A.cursor ?? 0, onUpdate, onEnd);
+    void engine.playMix(
+      A,
+      B,
+      planRef.current,
+      A.cursor ?? 0,
+      onUpdate,
+      onEnd,
+      keyShiftRef.current * 100,
+    );
   }, [engine, onUpdate, onEnd]);
 
   const playTransition = useCallback(() => {
     const { A, B } = tracksRef.current;
     if (!A || !B || !planRef.current) return;
     setPlaying("transition");
-    void engine.playTransition(A, B, planRef.current, onUpdate, onEnd);
+    void engine.playTransition(A, B, planRef.current, onUpdate, onEnd, keyShiftRef.current * 100);
   }, [engine, onUpdate, onEnd]);
 
   const playTrack = useCallback(
@@ -218,6 +237,7 @@ export function useSegue() {
     (slot: Slot, track: Track) => {
       stop();
       setPlan(null);
+      setKeyShift(0);
       setError(null);
       setTracks((prev) =>
         slot === "A"
@@ -263,5 +283,7 @@ export function useSegue() {
     playTrack,
     setMarker,
     loadTrack,
+    keyShift,
+    setKeyShift,
   };
 }

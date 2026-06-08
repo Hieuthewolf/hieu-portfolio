@@ -130,12 +130,36 @@ export class AudioEngine {
     this.raf = requestAnimationFrame(tick);
   }
 
-  playTransition(a: Track, b: Track, plan: TransitionPlan, onUpdate: OnUpdate, onEnd: OnEnd): Promise<void> {
-    return this.run(a, b, plan, Math.max(0, plan.mixStartA - 4 * a.features.beat), onUpdate, onEnd, true);
+  playTransition(
+    a: Track,
+    b: Track,
+    plan: TransitionPlan,
+    onUpdate: OnUpdate,
+    onEnd: OnEnd,
+    detuneCents = 0,
+  ): Promise<void> {
+    return this.run(
+      a,
+      b,
+      plan,
+      Math.max(0, plan.mixStartA - 4 * a.features.beat),
+      onUpdate,
+      onEnd,
+      true,
+      detuneCents,
+    );
   }
 
-  playMix(a: Track, b: Track, plan: TransitionPlan, aStart: number, onUpdate: OnUpdate, onEnd: OnEnd): Promise<void> {
-    return this.run(a, b, plan, aStart, onUpdate, onEnd, false);
+  playMix(
+    a: Track,
+    b: Track,
+    plan: TransitionPlan,
+    aStart: number,
+    onUpdate: OnUpdate,
+    onEnd: OnEnd,
+    detuneCents = 0,
+  ): Promise<void> {
+    return this.run(a, b, plan, aStart, onUpdate, onEnd, false, detuneCents);
   }
 
   private async run(
@@ -146,6 +170,7 @@ export class AudioEngine {
     onUpdate: OnUpdate,
     onEnd: OnEnd,
     clip: boolean,
+    detuneCents = 0,
   ): Promise<void> {
     this.stop();
     const c = this.context();
@@ -163,6 +188,8 @@ export class AudioEngine {
     const srcB = c.createBufferSource();
     srcB.buffer = b.buffer;
     if (warp !== 1) srcB.playbackRate.value = warp;
+    // Key-shift the incoming track (detune resamples, so it nudges tempo too).
+    if (detuneCents) srcB.detune.value = detuneCents;
 
     const gA = c.createGain();
     const gB = c.createGain();
