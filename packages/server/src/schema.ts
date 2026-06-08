@@ -56,7 +56,6 @@ const typeDefs = /* GraphQL */ `
   }
 
   input PlanOptionsInput {
-    skill: String!
     setMoment: String!
     beatmatch: Boolean!
     phraseBars: Int!
@@ -107,7 +106,6 @@ const typeDefs = /* GraphQL */ `
   }
 
   input SetOptionsInput {
-    skill: String!
     setMoment: String!
     beatmatch: Boolean!
     phraseBars: Int!

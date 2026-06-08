@@ -1,6 +1,6 @@
 import { theme } from "../theme";
 import { Select } from "./Select";
-import type { PlanOptions, Skill, SetMoment } from "../audio/types";
+import type { PlanOptions, SetMoment } from "../audio/types";
 
 interface ControlsProps {
   opts: PlanOptions;
@@ -52,16 +52,6 @@ export function Controls({
       }}
     >
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 12 }}>
-        <Select
-          label="Your level"
-          value={opts.skill}
-          onChange={(v) => set("skill", v as Skill)}
-          options={[
-            { value: "beginner", label: "Beginner" },
-            { value: "intermediate", label: "Intermediate" },
-            { value: "advanced", label: "Advanced" },
-          ]}
-        />
         <Select
           label="Set moment"
           value={opts.setMoment}

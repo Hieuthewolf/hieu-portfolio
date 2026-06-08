@@ -20,7 +20,6 @@ const tracks: SetTrack[] = [
 ];
 
 const options = (over: Partial<SetOptions> = {}): SetOptions => ({
-  skill: "beginner",
   setMoment: "peak",
   beatmatch: true,
   phraseBars: 16,

@@ -11,7 +11,6 @@ interface NowPlaying {
 }
 
 const DEFAULT_SET_OPTS: SetOptions = {
-  skill: "beginner",
   setMoment: "peak",
   beatmatch: true,
   phraseBars: 16,

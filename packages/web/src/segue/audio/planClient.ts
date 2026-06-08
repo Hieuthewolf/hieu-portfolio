@@ -70,7 +70,6 @@ export async function requestPlan(
     a: toFeaturesInput(a),
     b: toFeaturesInput(b),
     options: {
-      skill: opts.skill,
       setMoment: opts.setMoment,
       beatmatch: opts.beatmatch,
       phraseBars: opts.phraseBars,
@@ -251,7 +250,6 @@ export async function requestSetPlan(tracks: Track[], opts: SetOptions): Promise
   const input = {
     tracks: tracks.map(toSetTrackInput),
     options: {
-      skill: opts.skill,
       setMoment: opts.setMoment,
       beatmatch: opts.beatmatch,
       phraseBars: opts.phraseBars,

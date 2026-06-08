@@ -58,7 +58,7 @@ async function llmStrategy(input: PlanInput): Promise<Strategy> {
   const resp = await client.messages.create({
     model: MODEL,
     max_tokens: 1024,
-    system: SYSTEM_PROMPT.replace("{skill}", input.options.skill).replace("{setMoment}", input.options.setMoment),
+    system: SYSTEM_PROMPT.replace("{setMoment}", input.options.setMoment),
     tools: [PLAN_TOOL],
     tool_choice: { type: "tool", name: "emit_plan" },
     messages: [{ role: "user", content: renderUser(input) }],

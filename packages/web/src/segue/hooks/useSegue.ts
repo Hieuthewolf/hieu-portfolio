@@ -17,7 +17,6 @@ type Playing = "A" | "B" | "mix" | "transition" | null;
 const DEFAULT_OPTS: PlanOptions = {
   phraseBars: 16,
   beatmatch: true,
-  skill: "beginner",
   setMoment: "peak",
   nudgeBars: 0,
 };
@@ -143,7 +142,7 @@ export function useSegue() {
       setOpts(o);
       if (!planRef.current) return;
       // Phrase length is a pure timing change → re-resolve locally.
-      // Skill/moment/beatmatch change the *decision* → ask the coach again.
+      // Moment/beatmatch change the *decision* → ask the coach again.
       if (k === "phraseBars") reResolve(o);
       else void runPlan(o);
     },

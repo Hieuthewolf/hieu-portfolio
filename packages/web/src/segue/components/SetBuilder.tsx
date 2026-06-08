@@ -4,7 +4,7 @@ import { useSetBuilder } from "../hooks/useSetBuilder";
 import { EnergyArc } from "./EnergyArc";
 import { Select } from "./Select";
 import { TrackList } from "./TrackList";
-import type { Skill, SetMoment, Track } from "../audio/types";
+import type { SetMoment, Track } from "../audio/types";
 
 interface SetBuilderProps {
   onRehearse: (from: Track, to: Track) => void;
@@ -67,16 +67,6 @@ export function SetBuilder({ onRehearse }: SetBuilderProps) {
           gap: 12,
         }}
       >
-        <Select
-          label="Your level"
-          value={opts.skill}
-          onChange={(v) => setOption("skill", v as Skill)}
-          options={[
-            { value: "beginner", label: "Beginner" },
-            { value: "intermediate", label: "Intermediate" },
-            { value: "advanced", label: "Advanced" },
-          ]}
-        />
         <Select
           label="Set moment"
           value={opts.setMoment}

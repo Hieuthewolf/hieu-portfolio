@@ -21,7 +21,7 @@ const input: PlanInput = {
     duration: 280,
     sections: [{ kind: "intro", startBar: 0, endBar: 16, startSec: 0 }],
   },
-  options: { skill: "beginner", setMoment: "peak", beatmatch: true, phraseBars: 16 },
+  options: { setMoment: "peak", beatmatch: true, phraseBars: 16 },
 };
 
 describe("camelotCompatible", () => {

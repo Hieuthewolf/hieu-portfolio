@@ -24,11 +24,9 @@ export interface TrackFeatures {
   sections: Section[];
 }
 
-export type Skill = "beginner" | "intermediate" | "advanced";
 export type SetMoment = "warmup" | "peak" | "cooldown";
 
 export interface PlanOptions {
-  skill: Skill;
   setMoment: SetMoment;
   beatmatch: boolean;
   phraseBars: number; // 8 | 16 | 32

@@ -3,7 +3,7 @@ import type { PlanSetInput, SetRole, SetStrategy, SetTrack } from "./types.js";
 
 const ROLES: SetRole[] = ["opener", "builder", "peak", "bridge", "closer"];
 
-export const SET_SYSTEM_PROMPT = `You're a warm, encouraging DJ mentor helping a {skill} DJ order a pile of tracks into a \
+export const SET_SYSTEM_PROMPT = `You're a warm, encouraging DJ mentor helping someone who's still learning order a pile of tracks into a \
 set for the {setMoment}. For each track you get its tempo, key (Camelot), an energy level (0–1) and whether that energy is \
 rising/steady/falling, and its labelled sections.
 
@@ -72,7 +72,7 @@ export function renderSetUser(input: PlanSetInput): string {
     .filter(Boolean)
     .join("; ");
   return [
-    `Order these ${tracks.length} tracks into a set. DJ skill: ${options.skill}. Set moment: ${options.setMoment}.`,
+    `Order these ${tracks.length} tracks into a set. Set moment: ${options.setMoment}.`,
     tracks.map(trackLine).join("\n"),
     pins || "no pinned tracks",
     "Call emit_set with the full order (every id once), a role per track, and a one-line narrative.",
