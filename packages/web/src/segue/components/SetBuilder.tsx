@@ -38,6 +38,7 @@ export function SetBuilder({ onRehearse }: SetBuilderProps) {
     playing,
     nowPlaying,
     playSet,
+    playTransitions,
     stopPlayback,
   } = useSetBuilder();
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -149,11 +150,22 @@ export function SetBuilder({ onRehearse }: SetBuilderProps) {
           >
             {planning ? "ordering…" : setPlan ? "Re-order the set" : "Build the set (ask Claude)"}
           </button>
-          {setPlan && ordered.length > 1 && (
-            <button onClick={playing ? stopPlayback : playSet} style={btn(playing)}>
-              {playing ? "■ stop set" : "▶ play the set"}
-            </button>
-          )}
+          {setPlan &&
+            ordered.length > 1 &&
+            (playing ? (
+              <button onClick={stopPlayback} style={btn(true)}>
+                ■ stop
+              </button>
+            ) : (
+              <>
+                <button onClick={playSet} style={btn(false)}>
+                  ▶ play the set
+                </button>
+                <button onClick={playTransitions} style={btn(false)}>
+                  ▶ play transitions
+                </button>
+              </>
+            ))}
           <span style={{ fontFamily: theme.mono, fontSize: 11, color: theme.muted }}>
             {tracks.length} track{tracks.length === 1 ? "" : "s"}
             {tracks.length < 2 ? " · add at least 2" : ""}

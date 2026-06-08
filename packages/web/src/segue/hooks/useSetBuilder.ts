@@ -35,6 +35,7 @@ export function useSetBuilder() {
   const [playing, setPlaying] = useState(false);
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
   const npKey = useRef("");
+  const reelRef = useRef(false); // is the one-at-a-time transitions reel running?
 
   useEffect(() => () => engine.stop(), [engine]);
 
@@ -131,6 +132,7 @@ export function useSetBuilder() {
     const ordered = setPlan.order.map((id) => byId.get(id)!).filter(Boolean);
     if (ordered.length < 2) return;
     const plans = setTimeline(ordered, opts);
+    reelRef.current = false;
     setPlaying(true);
     npKey.current = "";
     void engine.playSet(
@@ -151,7 +153,42 @@ export function useSetBuilder() {
     );
   }, [setPlan, tracks, opts, engine]);
 
+  // Play just the transitions, one at a time, back to back: each is the same
+  // lead-in + bass-swap blend as the coach, chained over consecutive pairs. The
+  // jump between them lands near the next track's mix-out ("to the song's end").
+  const playTransitions = useCallback(() => {
+    if (!setPlan || tracks.length < 2) return;
+    const byId = new Map(tracks.map((t) => [t.id, t]));
+    const ordered = setPlan.order.map((id) => byId.get(id)!).filter(Boolean);
+    if (ordered.length < 2) return;
+    const plans = setTimeline(ordered, opts);
+    reelRef.current = true;
+    setPlaying(true);
+    let i = 0;
+    const playOne = () => {
+      if (!reelRef.current || i >= plans.length) {
+        reelRef.current = false;
+        setPlaying(false);
+        setNowPlaying(null);
+        return;
+      }
+      setNowPlaying({ index: i + 1, from: i, blending: true });
+      void engine.playTransition(
+        ordered[i]!,
+        ordered[i + 1]!,
+        plans[i]!,
+        () => {},
+        () => {
+          i++;
+          playOne();
+        },
+      );
+    };
+    playOne();
+  }, [setPlan, tracks, opts, engine]);
+
   const stopPlayback = useCallback(() => {
+    reelRef.current = false;
     engine.stop();
     setPlaying(false);
     setNowPlaying(null);
@@ -174,6 +211,7 @@ export function useSetBuilder() {
     buildSet,
     reorder,
     playSet,
+    playTransitions,
     stopPlayback,
   };
 }
