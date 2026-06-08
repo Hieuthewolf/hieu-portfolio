@@ -5,6 +5,7 @@ import { TrackSlot } from "./components/TrackSlot";
 import { Controls } from "./components/Controls";
 import { CoachPanel } from "./components/CoachPanel";
 import { MixerStrip } from "./components/MixerStrip";
+import { DeckEQ } from "./components/DeckEQ";
 import { Waveform } from "./components/Waveform";
 import { GlossaryPanel } from "./components/GlossaryPanel";
 import { SetBuilder } from "./components/SetBuilder";
@@ -237,6 +238,12 @@ export function App() {
             {plan && (mix || playing === "mix" || playing === "transition") && (
               <div style={{ marginBottom: 16 }}>
                 <MixerStrip mix={mix} subscribe={subscribe} />
+              </div>
+            )}
+
+            {plan && A && B && (
+              <div style={{ marginBottom: 16 }}>
+                <DeckEQ beatmatch={plan.beatmatch} subscribe={subscribe} />
               </div>
             )}
 

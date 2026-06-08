@@ -16,6 +16,53 @@ export interface PlayUpdate {
 type OnUpdate = (u: PlayUpdate) => void;
 type OnEnd = () => void;
 
+// ---- 3-band EQ (deck realism) ----
+//
+// A real DJ mixer is three EQ bands per channel + a crossfader. The transition
+// models an authentic *bass-swap*: the incoming track's lows stay killed until
+// the swap point, so two basslines never play at once (the cardinal rule). The
+// curve is shared with the DeckEQ readout so the visual matches what you hear.
+
+export interface DeckBands {
+  low: number;
+  mid: number;
+  high: number;
+}
+
+const KILL_DB = -40; // a fully "killed" EQ band
+
+/** Band levels (0 = killed, 1 = full) for each deck at transition progress p (0..1). */
+export function eqBands(p: number, beatmatch: boolean): { a: DeckBands; b: DeckBands } {
+  // Where the bass hands over. A blend swaps late (ride them together first); a
+  // non-beatmatched cut swaps early to get off the clashing track quickly.
+  const swap = beatmatch ? 0.6 : 0.4;
+  const ramp = 0.1;
+  const lowA = p < swap ? 1 : clamp(1 - (p - swap) / ramp, 0, 1);
+  const lowB = p < swap - 0.05 ? 0 : clamp((p - (swap - 0.05)) / ramp, 0, 1);
+  return { a: { low: lowA, mid: 1, high: 1 }, b: { low: lowB, mid: 1, high: 1 } };
+}
+
+function makeEQ(c: AudioContext): {
+  input: BiquadFilterNode;
+  output: BiquadFilterNode;
+  low: BiquadFilterNode;
+} {
+  const low = c.createBiquadFilter();
+  low.type = "lowshelf";
+  low.frequency.value = 200;
+  const mid = c.createBiquadFilter();
+  mid.type = "peaking";
+  mid.frequency.value = 1000;
+  mid.Q.value = 0.8;
+  const high = c.createBiquadFilter();
+  high.type = "highshelf";
+  high.frequency.value = 3500;
+  low.connect(mid).connect(high);
+  return { input: low, output: high, low };
+}
+
+const toDb = (level: number): number => (level - 1) * -KILL_DB; // 1 → 0dB, 0 → KILL_DB
+
 export class AudioEngine {
   private ctx: AudioContext | null = null;
   private raf = 0;
@@ -110,15 +157,13 @@ export class AudioEngine {
 
     const gA = c.createGain();
     const gB = c.createGain();
-    const hpA = c.createBiquadFilter();
-    hpA.type = "highpass";
-    hpA.frequency.value = 20;
-    const lpB = c.createBiquadFilter();
-    lpB.type = "lowpass";
-    lpB.frequency.value = 20000;
+    const eqA = makeEQ(c);
+    const eqB = makeEQ(c);
 
-    srcA.connect(hpA).connect(gA).connect(c.destination);
-    srcB.connect(lpB).connect(gB).connect(c.destination);
+    srcA.connect(eqA.input);
+    eqA.output.connect(gA).connect(c.destination);
+    srcB.connect(eqB.input);
+    eqB.output.connect(gB).connect(c.destination);
 
     gA.gain.setValueAtTime(1, t0);
     gA.gain.setValueAtTime(1, transStart);
@@ -127,11 +172,18 @@ export class AudioEngine {
     gB.gain.setValueAtTime(0.0001, transStart);
     gB.gain.linearRampToValueAtTime(1, transEnd);
 
-    const wide = plan.bpmDiff >= 0.08 && !plan.beatmatch;
-    hpA.frequency.setValueAtTime(20, transStart);
-    hpA.frequency.exponentialRampToValueAtTime(wide ? 1200 : 450, transEnd);
-    lpB.frequency.setValueAtTime(wide ? 600 : 320, transStart);
-    lpB.frequency.exponentialRampToValueAtTime(18000, transEnd);
+    // Bass-swap: ride A's lows, hold B's killed, then swap on the curve. Sampled
+    // in steps so the scheduled audio tracks the same curve DeckEQ draws.
+    const STEPS = 24;
+    eqA.low.gain.setValueAtTime(0, t0);
+    eqB.low.gain.setValueAtTime(KILL_DB, t0);
+    for (let k = 0; k <= STEPS; k++) {
+      const p = k / STEPS;
+      const t = transStart + p * plan.transLen;
+      const { a, b } = eqBands(p, plan.beatmatch);
+      eqA.low.gain.linearRampToValueAtTime(toDb(a.low), t);
+      eqB.low.gain.linearRampToValueAtTime(toDb(b.low), t);
+    }
 
     srcA.start(t0, start);
     srcB.start(transStart, plan.mixStartB);
