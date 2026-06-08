@@ -1,6 +1,6 @@
 {
   "installCommand": "pnpm install",
-  "buildCommand": "pnpm --filter @portfolio/web run relay && pnpm --filter @portfolio/web build",
+  "buildCommand": "pnpm --filter @portfolio/server build && pnpm --filter @portfolio/web run relay && pnpm --filter @portfolio/web build",
   "outputDirectory": "packages/web/dist",
   "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }]
 }
