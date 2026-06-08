@@ -10,6 +10,7 @@ interface TrackListProps {
   introId?: string | null;
   outroId?: string | null;
   canReorder: boolean;
+  playingIndex?: number | null;
   onReorder: (from: number, to: number) => void;
   onRemove: (id: string) => void;
   onPinIntro: (id: string) => void;
@@ -46,6 +47,7 @@ export function TrackList({
   introId,
   outroId,
   canReorder,
+  playingIndex,
   onReorder,
   onRemove,
   onPinIntro,
@@ -57,6 +59,7 @@ export function TrackList({
       {items.map((t, i) => {
         const f = t.features;
         const role = roleById[t.id];
+        const isPlaying = playingIndex === i;
         return (
           <div key={t.id}>
             <div
@@ -64,10 +67,11 @@ export function TrackList({
                 display: "flex",
                 alignItems: "center",
                 gap: 12,
-                background: theme.surface,
-                border: `1px solid ${theme.line}`,
+                background: isPlaying ? "rgba(15,138,95,0.10)" : theme.surface,
+                border: `1px solid ${isPlaying ? theme.accent : theme.line}`,
                 borderRadius: 12,
                 padding: "10px 14px",
+                transition: "background 120ms, border-color 120ms",
               }}
             >
               <span

@@ -299,6 +299,17 @@ export function gapsFor(order: Track[], opts: PlanOptions): SetGap[] {
   return gaps;
 }
 
+/** Resolve a full beat-aligned transition plan for each adjacency — the schedule the engine plays. */
+export function setTimeline(order: Track[], opts: PlanOptions): TransitionPlan[] {
+  const plans: TransitionPlan[] = [];
+  for (let i = 0; i < order.length - 1; i++) {
+    const a = order[i]!.features;
+    const b = order[i + 1]!.features;
+    plans.push(resolvePlan(a, b, heuristicStrategy(a, b, opts), 0, "heuristic"));
+  }
+  return plans;
+}
+
 export function arcTarget(moment: SetMoment, p: number): number {
   if (moment === "warmup") return 0.2 + 0.6 * p;
   if (moment === "cooldown") return 0.8 - 0.6 * p;

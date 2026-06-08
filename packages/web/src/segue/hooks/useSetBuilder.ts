@@ -1,8 +1,14 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { analyzeBuffer } from "../audio/analyze";
 import { AudioEngine } from "../audio/engine";
-import { gapsFor, localSetPlan, requestSetPlan } from "../audio/planClient";
+import { gapsFor, localSetPlan, requestSetPlan, setTimeline } from "../audio/planClient";
 import type { SetOptions, SetPlan, Track } from "../audio/types";
+
+interface NowPlaying {
+  index: number;
+  from: number;
+  blending: boolean;
+}
 
 const DEFAULT_SET_OPTS: SetOptions = {
   skill: "beginner",
@@ -26,6 +32,11 @@ export function useSetBuilder() {
   const [opts, setOpts] = useState<SetOptions>(DEFAULT_SET_OPTS);
   const [planning, setPlanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
+  const npKey = useRef("");
+
+  useEffect(() => () => engine.stop(), [engine]);
 
   const addFiles = useCallback(
     async (files: File[]) => {
@@ -112,12 +123,49 @@ export function useSetBuilder() {
     [tracks, opts],
   );
 
+  // Play the whole set end to end. Current-track changes are coarse (a handful
+  // over a set), so they go through React state; nothing per-frame does.
+  const playSet = useCallback(() => {
+    if (!setPlan || tracks.length < 2) return;
+    const byId = new Map(tracks.map((t) => [t.id, t]));
+    const ordered = setPlan.order.map((id) => byId.get(id)!).filter(Boolean);
+    if (ordered.length < 2) return;
+    const plans = setTimeline(ordered, opts);
+    setPlaying(true);
+    npKey.current = "";
+    void engine.playSet(
+      ordered,
+      plans,
+      (u) => {
+        const key = `${u.index}:${u.blending}`;
+        if (key !== npKey.current) {
+          npKey.current = key;
+          setNowPlaying({ index: u.index, from: u.from, blending: u.blending });
+        }
+      },
+      () => {
+        setPlaying(false);
+        setNowPlaying(null);
+        npKey.current = "";
+      },
+    );
+  }, [setPlan, tracks, opts, engine]);
+
+  const stopPlayback = useCallback(() => {
+    engine.stop();
+    setPlaying(false);
+    setNowPlaying(null);
+    npKey.current = "";
+  }, [engine]);
+
   return {
     tracks,
     setPlan,
     opts,
     planning,
     error,
+    playing,
+    nowPlaying,
     addFiles,
     removeTrack,
     pinIntro,
@@ -125,5 +173,7 @@ export function useSetBuilder() {
     setOption,
     buildSet,
     reorder,
+    playSet,
+    stopPlayback,
   };
 }

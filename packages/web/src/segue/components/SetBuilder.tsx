@@ -35,6 +35,10 @@ export function SetBuilder({ onRehearse }: SetBuilderProps) {
     setOption,
     buildSet,
     reorder,
+    playing,
+    nowPlaying,
+    playSet,
+    stopPlayback,
   } = useSetBuilder();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -145,10 +149,20 @@ export function SetBuilder({ onRehearse }: SetBuilderProps) {
           >
             {planning ? "ordering…" : setPlan ? "Re-order the set" : "Build the set (ask Claude)"}
           </button>
+          {setPlan && ordered.length > 1 && (
+            <button onClick={playing ? stopPlayback : playSet} style={btn(playing)}>
+              {playing ? "■ stop set" : "▶ play the set"}
+            </button>
+          )}
           <span style={{ fontFamily: theme.mono, fontSize: 11, color: theme.muted }}>
             {tracks.length} track{tracks.length === 1 ? "" : "s"}
             {tracks.length < 2 ? " · add at least 2" : ""}
             {setPlan ? ` · ${setPlan.source === "llm" ? "via Claude" : "offline"}` : ""}
+            {playing && nowPlaying
+              ? nowPlaying.blending
+                ? ` · blending ${nowPlaying.from + 1}→${nowPlaying.index + 1}`
+                : ` · playing ${nowPlaying.index + 1}/${ordered.length}`
+              : ""}
           </span>
         </div>
       )}
@@ -177,6 +191,7 @@ export function SetBuilder({ onRehearse }: SetBuilderProps) {
           introId={opts.introId}
           outroId={opts.outroId}
           canReorder={!!setPlan}
+          playingIndex={playing && nowPlaying ? nowPlaying.index : null}
           onReorder={reorder}
           onRemove={removeTrack}
           onPinIntro={pinIntro}
