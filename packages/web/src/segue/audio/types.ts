@@ -53,9 +53,29 @@ export type MixOutSection = "drop" | "breakdown" | "outro";
 export type MixInSection = "intro" | "build" | "drop";
 export type Difficulty = "easy" | "moderate" | "tricky";
 
+// Mirrors packages/server/src/planner ControlRef — a physical control on the FLX4.
+export type ControlPart =
+  | "lowEQ"
+  | "midEQ"
+  | "hiEQ"
+  | "filter"
+  | "channelFader"
+  | "crossfader"
+  | "play"
+  | "cue"
+  | "jog"
+  | "tempo";
+
+export interface ControlRef {
+  target: "A" | "B" | "center"; // A = left channel/deck, B = right, center = crossfader
+  part: ControlPart;
+  dir?: "up" | "down";
+}
+
 export interface PlaybookStep {
   atBar: number;
   action: string;
+  controls?: ControlRef[];
 }
 
 export interface Strategy {

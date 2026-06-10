@@ -49,9 +49,33 @@ export type MixOutSection = "drop" | "breakdown" | "outro";
 export type MixInSection = "intro" | "build" | "drop";
 export type Difficulty = "easy" | "moderate" | "tricky";
 
+/**
+ * A physical control on a DDJ-FLX4-style 2-deck controller, so a playbook step can
+ * point at the exact knob/fader the beginner should touch. `target` is the channel:
+ * "A"/"B" are the two channel strips (and their decks); "center" is the crossfader.
+ */
+export type ControlPart =
+  | "lowEQ"
+  | "midEQ"
+  | "hiEQ"
+  | "filter"
+  | "channelFader"
+  | "crossfader"
+  | "play"
+  | "cue"
+  | "jog"
+  | "tempo";
+
+export interface ControlRef {
+  target: "A" | "B" | "center";
+  part: ControlPart;
+  dir?: "up" | "down"; // which way to move it — the bass-swap shows A↓ + B↑
+}
+
 export interface PlaybookStep {
   atBar: number;
   action: string;
+  controls?: ControlRef[]; // optional — ear-only steps ("listen for the kicks") touch nothing
 }
 
 /** What the LLM decides (judgment), before exact timestamps are resolved. */

@@ -2,6 +2,7 @@ import { theme } from "../theme";
 import { fmt } from "../utils/format";
 import { shiftCamelot, suggestFix } from "../audio/fix";
 import type { AudioFeatures, TransitionPlan } from "../audio/types";
+import { FLX4Map } from "./FLX4Map";
 
 const DIFFICULTY_COLOR: Record<string, string> = {
   easy: "#0F8A5F",
@@ -186,6 +187,8 @@ export function CoachPanel({ plan, a, b, activeStep, keyShift, setKeyShift }: Co
           )}
         </div>
       )}
+
+      <FLX4Map playbook={plan.playbook} activeStep={activeStep} />
 
       <div style={{ display: "grid", gap: 10 }}>
         {plan.playbook.map((step, i) => {

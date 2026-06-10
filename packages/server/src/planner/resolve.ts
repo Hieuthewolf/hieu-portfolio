@@ -6,6 +6,8 @@
  * isolation and reused without pulling in the Anthropic client.
  */
 import type {
+  ControlPart,
+  ControlRef,
   Difficulty,
   MixInSection,
   MixOutSection,
@@ -44,6 +46,68 @@ function findSection(sections: Section[], kind: string, preferLast: boolean): Se
   return preferLast ? matches[matches.length - 1]! : matches[0]!;
 }
 
+const CONTROL_PARTS: ControlPart[] = [
+  "lowEQ",
+  "midEQ",
+  "hiEQ",
+  "filter",
+  "channelFader",
+  "crossfader",
+  "play",
+  "cue",
+  "jog",
+  "tempo",
+];
+
+function isControlRef(c: unknown): c is ControlRef {
+  if (!c || typeof c !== "object") return false;
+  const r = c as Partial<ControlRef>;
+  return (
+    (r.target === "A" || r.target === "B" || r.target === "center") &&
+    typeof r.part === "string" &&
+    CONTROL_PARTS.includes(r.part as ControlPart) &&
+    (r.dir === undefined || r.dir === "up" || r.dir === "down")
+  );
+}
+
+/**
+ * Best-effort fallback: read a plain-language step and guess which control(s) it touches.
+ * Only runs when a step arrives without structured `controls` (e.g. an older model
+ * response) — the heuristic hand-authors them and the LLM is asked to tag them.
+ */
+export function inferControls(action: string): ControlRef[] {
+  const t = action.toLowerCase();
+  const mentionsA = /\b(track|deck)?\s*a('s|\b)|\bits a\b/.test(t) || /track a/.test(t);
+  const mentionsB = /\b(track|deck)?\s*b('s|\b)/.test(t) || /track b/.test(t);
+  const decks: Array<"A" | "B"> =
+    mentionsA && mentionsB ? ["A", "B"] : mentionsB ? ["B"] : ["A"];
+  const dir: ControlRef["dir"] = /\b(down|cut|lower|kill|drop)\b/.test(t)
+    ? "down"
+    : /\b(up|raise|bring up|boost)\b/.test(t)
+      ? "up"
+      : undefined;
+
+  const out: ControlRef[] = [];
+  if (/crossfader|cross-fader/.test(t)) out.push({ target: "center", part: "crossfader" });
+  if (/\bbass\b|low eq|low-eq|lows\b/.test(t)) decks.forEach((d) => out.push({ target: d, part: "lowEQ", dir }));
+  if (/\bmid(s|-range| eq)?\b/.test(t)) decks.forEach((d) => out.push({ target: d, part: "midEQ", dir }));
+  if (/\b(highs?|treble|hi eq)\b/.test(t)) decks.forEach((d) => out.push({ target: d, part: "hiEQ", dir }));
+  if (/\bfilter\b/.test(t)) decks.forEach((d) => out.push({ target: d, part: "filter" }));
+  if (/\b(volume|channel fader|line fader|upfader|fader up|fader down)\b/.test(t))
+    decks.forEach((d) => out.push({ target: d, part: "channelFader", dir }));
+  if (/\b(start|hit play|press play|playing)\b/.test(t)) decks.forEach((d) => out.push({ target: d, part: "play" }));
+  if (/\bjog|platter\b/.test(t)) decks.forEach((d) => out.push({ target: d, part: "jog" }));
+  if (/\btempo|pitch fader\b/.test(t)) decks.forEach((d) => out.push({ target: d, part: "tempo" }));
+  return out;
+}
+
+/** Keep a step's valid structured controls; if it has none, fall back to inference. */
+export function normalizeControls(step: PlaybookStep): PlaybookStep {
+  const valid = (step.controls ?? []).filter(isControlRef);
+  const controls = valid.length > 0 ? valid : inferControls(step.action);
+  return controls.length > 0 ? { ...step, controls } : { atBar: step.atBar, action: step.action };
+}
+
 /** Deterministically turn a strategy into exact beat-aligned timestamps + warp. */
 export function resolve(input: PlanInput, s: Strategy, source: "llm" | "heuristic"): TransitionPlan {
   const { a, b } = input;
@@ -69,7 +133,7 @@ export function resolve(input: PlanInput, s: Strategy, source: "llm" | "heuristi
     warp: s.warpBToA ? a.bpm / b.bpm : 1,
     rationale: s.rationale,
     coachNote: s.coachNote,
-    playbook: s.playbook,
+    playbook: s.playbook.map(normalizeControls),
     mixOutSection: s.mixOutSection,
     mixInSection: s.mixInSection,
     phraseBars: s.phraseBars,
@@ -121,25 +185,40 @@ export function heuristicStrategy(input: PlanInput): Strategy {
       atBar: 0,
       action:
         "On the first beat of a new phrase (a 16- or 32-bar chunk), start track B with its bass turned down and its volume up.",
+      controls: [
+        { target: "B", part: "play" },
+        { target: "B", part: "lowEQ", dir: "down" },
+        { target: "B", part: "channelFader", dir: "up" },
+      ],
     },
     {
       atBar: 0,
       action:
         "Listen for the kick drums landing together — if they drift apart, the tracks aren't beatmatched (locked to the same speed).",
+      // ear-only step: nothing to touch, so nothing lights up on the board.
     },
     {
       atBar: mid,
       action:
         "Slide the crossfader (the slider that blends the two songs) toward the middle so you can hear both.",
+      controls: [{ target: "center", part: "crossfader" }],
     },
     {
       atBar: swap,
       action: "Swap the bass on a beat: turn track A's low EQ (its bass knob) down, and track B's up.",
+      controls: [
+        { target: "A", part: "lowEQ", dir: "down" },
+        { target: "B", part: "lowEQ", dir: "up" },
+      ],
     },
     {
       atBar: phraseBars - 1,
       action:
         "Push the crossfader all the way to B and bring track A's volume down. You're through the mix.",
+      controls: [
+        { target: "center", part: "crossfader" },
+        { target: "A", part: "channelFader", dir: "down" },
+      ],
     },
   ];
 

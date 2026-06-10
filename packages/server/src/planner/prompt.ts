@@ -17,7 +17,10 @@ Voice — this matters as much as the plan:
 - The first time you use a DJ term in the rationale or any step, explain it in plain words in brackets — e.g. \
 "slide the crossfader (the slider that blends the two songs) to the middle".
 - No hype or filler. Avoid words like "leverage", "utilize", "seamless", "elevate", and phrases like "it's important to note". \
-Don't open with "Great". Write each playbook step as one calm instruction a nervous first-timer could follow.
+Don't open with "Great". Write each playbook step as one calm instruction a nervous first-timer could follow. \
+They're on a DDJ-FLX4 (entry-level 2-deck controller), so for any step that touches the gear, tag the physical \
+control(s) in \`controls\` — its 3-band EQ knobs, channel faders, crossfader, filter, play. Leave \`controls\` off \
+for pure listening steps.
 
 Always call the emit_plan tool with your decision. Reference concrete values (BPM, Camelot codes, sections). Do not \
 invent timestamps — only choose the strategy and write the coaching; exact timing is resolved downstream from the section grid.`;
@@ -57,6 +60,36 @@ export const PLAN_TOOL: Anthropic.Tool = {
           properties: {
             atBar: { type: "integer", description: "Bar offset within the transition where this step happens." },
             action: { type: "string", description: "One calm instruction." },
+            controls: {
+              type: "array",
+              description:
+                "The physical control(s) on the DDJ-FLX4 this step touches, so we can highlight them. " +
+                "Omit for ear-only steps (e.g. 'listen for the kicks'). target: A=left channel/deck, " +
+                "B=right channel/deck, center=crossfader.",
+              items: {
+                type: "object",
+                properties: {
+                  target: { type: "string", enum: ["A", "B", "center"] },
+                  part: {
+                    type: "string",
+                    enum: [
+                      "lowEQ",
+                      "midEQ",
+                      "hiEQ",
+                      "filter",
+                      "channelFader",
+                      "crossfader",
+                      "play",
+                      "cue",
+                      "jog",
+                      "tempo",
+                    ],
+                  },
+                  dir: { type: "string", enum: ["up", "down"], description: "Which way to move it, if it's a knob/fader." },
+                },
+                required: ["target", "part"],
+              },
+            },
           },
           required: ["atBar", "action"],
         },

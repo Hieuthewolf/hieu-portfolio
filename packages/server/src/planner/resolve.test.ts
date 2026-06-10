@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { camelotCompatible, heuristicStrategy, resolve } from "./resolve.js";
-import type { PlanInput } from "./types.js";
+import {
+  camelotCompatible,
+  heuristicStrategy,
+  inferControls,
+  normalizeControls,
+  resolve,
+} from "./resolve.js";
+import type { PlanInput, Strategy } from "./types.js";
 
 const input: PlanInput = {
   a: {
@@ -58,5 +64,50 @@ describe("planner deterministic layer", () => {
   it("warps B to A from the bpm ratio when beatmatching", () => {
     const p = resolve(input, { ...heuristicStrategy(input), warpBToA: true }, "heuristic");
     expect(p.warp).toBeCloseTo(input.a.bpm / input.b.bpm, 5);
+  });
+});
+
+describe("FLX4 control mapping", () => {
+  it("carries hand-authored controls from the heuristic through resolve", () => {
+    const p = resolve(input, heuristicStrategy(input), "heuristic");
+    // The bass-swap step touches A's LOW (down) and B's LOW (up).
+    const swap = p.playbook.find((s) =>
+      s.controls?.some((c) => c.target === "A" && c.part === "lowEQ"),
+    );
+    expect(swap?.controls).toEqual([
+      { target: "A", part: "lowEQ", dir: "down" },
+      { target: "B", part: "lowEQ", dir: "up" },
+    ]);
+    // The "listen for the kicks" step is ear-only: no controls.
+    const ear = p.playbook.find((s) => s.action.toLowerCase().includes("listen"));
+    expect(ear?.controls).toBeUndefined();
+  });
+
+  it("infers controls from plain-language actions as a fallback", () => {
+    expect(inferControls("Slide the crossfader toward the middle.")).toEqual([
+      { target: "center", part: "crossfader" },
+    ]);
+    expect(inferControls("Turn track B's bass up.")).toEqual([
+      { target: "B", part: "lowEQ", dir: "up" },
+    ]);
+    expect(inferControls("Listen for the kick drums landing together.")).toEqual([]);
+  });
+
+  it("keeps valid LLM-supplied controls and drops malformed ones", () => {
+    const step = {
+      atBar: 0,
+      action: "do a thing",
+      controls: [
+        { target: "A", part: "hiEQ", dir: "down" },
+        { target: "X", part: "lowEQ" }, // bad target
+        { target: "B", part: "wobble" }, // bad part
+      ],
+    } as unknown as Strategy["playbook"][number];
+    expect(normalizeControls(step).controls).toEqual([{ target: "A", part: "hiEQ", dir: "down" }]);
+  });
+
+  it("backfills via inference when a step arrives with no valid controls", () => {
+    const step = { atBar: 4, action: "Push the crossfader all the way to B." };
+    expect(normalizeControls(step).controls).toEqual([{ target: "center", part: "crossfader" }]);
   });
 });
