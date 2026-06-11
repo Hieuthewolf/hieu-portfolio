@@ -3,14 +3,24 @@ import type { PlanInput, TrackFeatures } from "./types.js";
 
 export const SYSTEM_PROMPT = `You're a warm, encouraging DJ mentor showing someone who's still learning how to mix track A (playing) into \
 track B (incoming) during the {setMoment} of their set. You get each track's tempo, key (Camelot), duration, \
-and labelled sections (intro/build/drop/breakdown/outro with bar numbers).
+and labelled sections (intro/build/drop/breakdown/outro with a timestamp and bar number each).
 
 How to mix well:
 - Start the blend on a phrase boundary (every 16 or 32 bars) so the two songs' sections line up — never start mid-phrase.
 - Leave track A after a drop, usually into its breakdown or outro, and bring B in on its intro or build so B's first drop lands fresh.
+- You don't have to ride A to its ending: you can mix out of a drop partway through A. To do that, set \`mixOutSec\` \
+to that drop's timestamp (in seconds, read from A's sections). Leave \`mixOutSec\` off to mix out of A's labelled \
+ending section. Only pick a mid-song drop when it's musically stronger than waiting for the outro.
 - Never let both basslines play at once (that's what makes a mix sound muddy) — swap the low EQ on a downbeat.
 - Favour the most forgiving option that fits the moment: a beatmatched bass-swap blend in compatible keys, or a \
 clean cut on a phrase boundary. Keep fragile moves (double drops) rare. At peak time, keep the energy up.
+
+Worked examples (illustrative — adapt to the real tracks):
+- A = 126 BPM 8A, drop@1:04 then a long breakdown@2:10; B = 126 BPM 8A with a 16-bar intro. A's mid-song drop is its \
+strongest moment and the keys match, so mix out THERE: mixOutSection "drop", mixOutSec 64, mixInSection "intro", \
+bass-swap blend, 16 bars, beatmatch on.
+- A = 124 BPM 5A winding down into a clean outro@3:30; B = 124 BPM 5A, build@0:32. Nothing beats the natural ending — \
+leave mixOutSec OFF: mixOutSection "outro", mixInSection "build", long beatmatched blend.
 
 Voice — this matters as much as the plan:
 - Sound like a friendly person showing a mate the ropes, not a manual. Warm, plain, direct, short sentences.
@@ -43,6 +53,12 @@ export const PLAN_TOOL: Anthropic.Tool = {
         ],
       },
       mixOutSection: { type: "string", enum: ["drop", "breakdown", "outro"], description: "Section of A to mix out of." },
+      mixOutSec: {
+        type: "number",
+        description:
+          "Optional exact out-point in seconds — set it to mix out of a SPECIFIC section, e.g. a drop in the middle " +
+          "of A (read the timestamp from A's sections). Omit to use A's labelled mixOutSection (its ending).",
+      },
       mixInSection: { type: "string", enum: ["intro", "build", "drop"], description: "Section of B to mix into." },
       phraseBars: { type: "integer", enum: [8, 16, 32], description: "Overlap length in bars." },
       warpBToA: { type: "boolean", description: "Warp B's tempo to match A (beatmatch)." },
@@ -109,8 +125,19 @@ export const PLAN_TOOL: Anthropic.Tool = {
   },
 };
 
+function fmtTime(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = Math.round(sec % 60)
+    .toString()
+    .padStart(2, "0");
+  return `${m}:${s}`;
+}
+
 function sectionsText(f: TrackFeatures): string {
-  return f.sections.map((s) => `${s.kind}@bar${s.startBar}`).join(", ") || "none detected";
+  return (
+    f.sections.map((s) => `${s.kind}@${fmtTime(s.startSec)} (bar${s.startBar}, ${s.startSec.toFixed(0)}s)`).join(", ") ||
+    "none detected"
+  );
 }
 
 export function renderUser(input: PlanInput): string {

@@ -72,6 +72,10 @@ async function llmStrategy(input: PlanInput): Promise<Strategy> {
 
   // Drop any malformed playbook entries the model may have emitted.
   s.playbook = s.playbook.filter((p) => typeof p?.atBar === "number" && typeof p?.action === "string");
+  // mixOutSec is optional; ignore anything that isn't a sane positive number.
+  if (typeof s.mixOutSec !== "number" || !Number.isFinite(s.mixOutSec) || s.mixOutSec <= 0) {
+    delete s.mixOutSec;
+  }
   return s;
 }
 

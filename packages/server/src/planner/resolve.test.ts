@@ -67,6 +67,41 @@ describe("planner deterministic layer", () => {
   });
 });
 
+describe("mid-song drop out-point (mixOutSec)", () => {
+  // A track with an early drop, a later drop, and an outro near the end.
+  const a = {
+    ...input.a,
+    sections: [
+      { kind: "drop" as const, startBar: 32, endBar: 48, startSec: 64 },
+      { kind: "drop" as const, startBar: 104, endBar: 120, startSec: 200 },
+      { kind: "outro" as const, startBar: 140, endBar: 160, startSec: 268 },
+    ],
+  };
+  const base: Strategy = {
+    technique: "Bass-swap blend",
+    mixOutSection: "drop",
+    mixInSection: "intro",
+    phraseBars: 16,
+    warpBToA: true,
+    difficulty: "easy",
+    rationale: "r",
+    coachNote: "c",
+    playbook: [],
+  };
+
+  it("snaps the out-point to mixOutSec when provided (the mid-song drop)", () => {
+    const p = resolve({ ...input, a }, { ...base, mixOutSec: 64 }, "llm");
+    expect(p.mixStartA).toBeGreaterThan(55); // near the early drop @64s…
+    expect(p.mixStartA).toBeLessThan(75); // …not the later drop @200s
+    expect(p.mixStartA + p.transLen).toBeLessThanOrEqual(a.duration);
+  });
+
+  it("falls back to the labelled section (last match) when mixOutSec is absent", () => {
+    const p = resolve({ ...input, a }, base, "llm");
+    expect(p.mixStartA).toBeGreaterThan(180); // last "drop" is @200s, not the early one
+  });
+});
+
 describe("FLX4 control mapping", () => {
   it("carries hand-authored controls from the heuristic through resolve", () => {
     const p = resolve(input, heuristicStrategy(input), "heuristic");

@@ -2,6 +2,7 @@ import { useRef, useState, type DragEvent } from "react";
 import { theme } from "../theme";
 import { useSetBuilder } from "../hooks/useSetBuilder";
 import { EnergyArc } from "./EnergyArc";
+import { FLX4Map } from "./FLX4Map";
 import { Select } from "./Select";
 import { TrackList } from "./TrackList";
 import type { SetMoment, Track } from "../audio/types";
@@ -37,12 +38,25 @@ export function SetBuilder({ onRehearse }: SetBuilderProps) {
     reorder,
     playing,
     nowPlaying,
+    transitionPlan,
+    blendMix,
+    subscribe,
     playSet,
     playTransitions,
     stopPlayback,
   } = useSetBuilder();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [dragOver, setDragOver] = useState(false);
+
+  // The active playbook step of the blending transition (same derivation as App.tsx).
+  const activeStep = (() => {
+    if (!transitionPlan || !blendMix || blendMix.phase === "runup") return -1;
+    let idx = -1;
+    transitionPlan.playbook.forEach((s, i) => {
+      if (s.atBar <= blendMix.bar) idx = i;
+    });
+    return idx;
+  })();
 
   const byId = new Map(tracks.map((t) => [t.id, t]));
   const ordered: Track[] = setPlan
@@ -170,6 +184,16 @@ export function SetBuilder({ onRehearse }: SetBuilderProps) {
       )}
 
       {setPlan && ordered.length > 0 && <EnergyArc tracks={ordered} moment={opts.setMoment} />}
+
+      {playing && transitionPlan && (
+        <FLX4Map
+          playbook={transitionPlan.playbook}
+          activeStep={activeStep}
+          beatmatch={transitionPlan.beatmatch}
+          phraseBars={transitionPlan.phraseBars}
+          subscribe={subscribe}
+        />
+      )}
 
       {setPlan?.narrative && (
         <p

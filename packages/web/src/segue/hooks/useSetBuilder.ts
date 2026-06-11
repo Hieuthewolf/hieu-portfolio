@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { analyzeBuffer } from "../audio/analyze";
-import { AudioEngine } from "../audio/engine";
+import { AudioEngine, type MixState, type PlayUpdate } from "../audio/engine";
 import { gapsFor, localSetPlan, requestSetPlan, setTimeline } from "../audio/planClient";
-import type { SetOptions, SetPlan, Track } from "../audio/types";
+import type { SetOptions, SetPlan, Track, TransitionPlan } from "../audio/types";
 
 interface NowPlaying {
   index: number;
@@ -33,8 +33,35 @@ export function useSetBuilder() {
   const [error, setError] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
+  // The transition currently blending (for the FLX4 board) + its coarse mix state
+  // (phase/bar, for the active-step highlight). Per-frame motion rides `subscribe`.
+  const [transitionPlan, setTransitionPlan] = useState<TransitionPlan | null>(null);
+  const [blendMix, setBlendMix] = useState<MixState | null>(null);
   const npKey = useRef("");
+  const mixKey = useRef("");
   const reelRef = useRef(false); // is the one-at-a-time transitions reel running?
+
+  // Per-frame PlayUpdates go to imperative subscribers (FLX4 knobs/faders), never
+  // through React state — same pattern as useSegue. Coarse changes use state above.
+  const listenersRef = useRef(new Set<(f: PlayUpdate | null) => void>());
+  const subscribe = useCallback((cb: (f: PlayUpdate | null) => void) => {
+    listenersRef.current.add(cb);
+    return () => {
+      listenersRef.current.delete(cb);
+    };
+  }, []);
+  const emit = useCallback((f: PlayUpdate | null) => {
+    for (const cb of listenersRef.current) cb(f);
+  }, []);
+
+  // Mirror a per-frame mix into the coarse state only when phase/bar actually change.
+  const pushCoarseMix = useCallback((mix: MixState | null) => {
+    const k = mix ? `${mix.phase}:${mix.bar}` : "none";
+    if (k !== mixKey.current) {
+      mixKey.current = k;
+      setBlendMix(mix);
+    }
+  }, []);
 
   useEffect(() => () => engine.stop(), [engine]);
 
@@ -134,23 +161,31 @@ export function useSetBuilder() {
     reelRef.current = false;
     setPlaying(true);
     npKey.current = "";
+    mixKey.current = "";
     void engine.playSet(
       ordered,
       plans,
       (u) => {
+        emit({ slot: u.blending ? "B" : "A", head: 0, mix: u.mix });
         const key = `${u.index}:${u.blending}`;
         if (key !== npKey.current) {
           npKey.current = key;
           setNowPlaying({ index: u.index, from: u.from, blending: u.blending });
+          setTransitionPlan(u.blending ? plans[u.from] ?? null : null);
         }
+        pushCoarseMix(u.mix);
       },
       () => {
+        emit(null);
         setPlaying(false);
         setNowPlaying(null);
+        setTransitionPlan(null);
+        setBlendMix(null);
         npKey.current = "";
+        mixKey.current = "";
       },
     );
-  }, [setPlan, tracks, opts, engine]);
+  }, [setPlan, tracks, opts, engine, emit, pushCoarseMix]);
 
   // Play just the transitions, one at a time, back to back: each is the same
   // lead-in + bass-swap blend as the coach, chained over consecutive pairs. The
@@ -163,20 +198,28 @@ export function useSetBuilder() {
     const plans = setTimeline(ordered, opts);
     reelRef.current = true;
     setPlaying(true);
+    mixKey.current = "";
     let i = 0;
     const playOne = () => {
       if (!reelRef.current || i >= plans.length) {
         reelRef.current = false;
+        emit(null);
         setPlaying(false);
         setNowPlaying(null);
+        setTransitionPlan(null);
+        setBlendMix(null);
         return;
       }
       setNowPlaying({ index: i + 1, from: i, blending: true });
+      setTransitionPlan(plans[i]!);
       void engine.playTransition(
         ordered[i]!,
         ordered[i + 1]!,
         plans[i]!,
-        () => {},
+        (u) => {
+          emit(u);
+          pushCoarseMix(u.mix);
+        },
         () => {
           i++;
           playOne();
@@ -184,15 +227,19 @@ export function useSetBuilder() {
       );
     };
     playOne();
-  }, [setPlan, tracks, opts, engine]);
+  }, [setPlan, tracks, opts, engine, emit, pushCoarseMix]);
 
   const stopPlayback = useCallback(() => {
     reelRef.current = false;
     engine.stop();
+    emit(null);
     setPlaying(false);
     setNowPlaying(null);
+    setTransitionPlan(null);
+    setBlendMix(null);
     npKey.current = "";
-  }, [engine]);
+    mixKey.current = "";
+  }, [engine, emit]);
 
   return {
     tracks,
@@ -202,6 +249,9 @@ export function useSetBuilder() {
     error,
     playing,
     nowPlaying,
+    transitionPlan,
+    blendMix,
+    subscribe,
     addFiles,
     removeTrack,
     pinIntro,

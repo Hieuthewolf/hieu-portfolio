@@ -82,6 +82,9 @@ export interface PlaybookStep {
 export interface Strategy {
   technique: Technique;
   mixOutSection: MixOutSection;
+  // Optional exact out-point in seconds (e.g. a drop mid-song, not just A's ending).
+  // When set, it overrides the labelled-section lookup in resolve().
+  mixOutSec?: number;
   mixInSection: MixInSection;
   phraseBars: number;
   warpBToA: boolean;

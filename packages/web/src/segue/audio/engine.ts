@@ -19,6 +19,9 @@ export interface SetPlayUpdate {
   from: number; // the track fading out (during a blend), else -1
   blending: boolean; // inside a transition overlap?
   progress: number; // 0..1 across the whole set
+  // Per-transition blend state during an overlap (else null) — lets the FLX4 board
+  // animate the current transition the same way it does for a single coach mix.
+  mix: MixState | null;
 }
 
 type OnUpdate = (u: PlayUpdate) => void;
@@ -368,11 +371,19 @@ export class AudioEngine {
       let index = 0;
       for (let i = 0; i < n; i++) if (now >= absStart[i]!) index = i;
       const blending = index >= 1 && now < absStart[index]! + overlapIn[index]!;
+      // The active transition is plans[index-1]; its blend spans the incoming
+      // track's intro overlap, so progress + bar mirror a single coach mix.
+      let mix: MixState | null = null;
+      if (blending) {
+        const p = clamp((now - absStart[index]!) / overlapIn[index]!, 0, 1);
+        mix = { phase: "blend", progress: p, bar: Math.floor(p * plans[index - 1]!.phraseBars) };
+      }
       onUpdate({
         index,
         from: blending ? index - 1 : -1,
         blending,
         progress: clamp((now - t0) / (setEnd - t0), 0, 1),
+        mix,
       });
       this.raf = requestAnimationFrame(tick);
     };

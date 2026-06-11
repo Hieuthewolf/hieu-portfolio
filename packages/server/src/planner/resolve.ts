@@ -114,8 +114,15 @@ export function resolve(input: PlanInput, s: Strategy, source: "llm" | "heuristi
   const barA = a.beat * 4;
   const transLen = s.phraseBars * barA;
 
+  // The model may pin an exact out-point (a mid-song drop); otherwise fall back to
+  // the labelled section (last match), then to 70% through the track.
   const secA = findSection(a.sections, s.mixOutSection, true);
-  const targetA = secA ? secA.startSec : a.duration * 0.7;
+  const targetA =
+    typeof s.mixOutSec === "number" && s.mixOutSec > 0
+      ? s.mixOutSec
+      : secA
+        ? secA.startSec
+        : a.duration * 0.7;
   const mixStartA = clamp(snapGrid(targetA, a.phase, barA), 0, Math.max(0, a.duration - transLen - 0.2));
 
   const secB = findSection(b.sections, s.mixInSection, false);
