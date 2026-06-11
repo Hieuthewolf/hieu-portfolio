@@ -258,6 +258,7 @@ export function App() {
                   activeStep={activeStep}
                   keyShift={keyShift}
                   setKeyShift={setKeyShift}
+                  subscribe={subscribe}
                 />
               </div>
             )}

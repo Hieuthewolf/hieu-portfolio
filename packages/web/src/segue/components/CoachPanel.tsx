@@ -2,6 +2,7 @@ import { theme } from "../theme";
 import { fmt } from "../utils/format";
 import { shiftCamelot, suggestFix } from "../audio/fix";
 import type { AudioFeatures, TransitionPlan } from "../audio/types";
+import type { PlayUpdate } from "../audio/engine";
 import { FLX4Map } from "./FLX4Map";
 
 const DIFFICULTY_COLOR: Record<string, string> = {
@@ -17,6 +18,7 @@ interface CoachPanelProps {
   activeStep: number;
   keyShift: number;
   setKeyShift: (s: number) => void;
+  subscribe: (cb: (f: PlayUpdate | null) => void) => () => void;
 }
 
 const stepBtn = {
@@ -31,7 +33,7 @@ const stepBtn = {
   cursor: "pointer",
 };
 
-export function CoachPanel({ plan, a, b, activeStep, keyShift, setKeyShift }: CoachPanelProps) {
+export function CoachPanel({ plan, a, b, activeStep, keyShift, setKeyShift, subscribe }: CoachPanelProps) {
   const fix = suggestFix(a.camelot, b.camelot, plan.bpmDiff, plan.compatible);
   const showKeyShift = fix.problem === "key" || fix.problem === "both";
   return (
@@ -188,7 +190,13 @@ export function CoachPanel({ plan, a, b, activeStep, keyShift, setKeyShift }: Co
         </div>
       )}
 
-      <FLX4Map playbook={plan.playbook} activeStep={activeStep} />
+      <FLX4Map
+        playbook={plan.playbook}
+        activeStep={activeStep}
+        beatmatch={plan.beatmatch}
+        phraseBars={plan.phraseBars}
+        subscribe={subscribe}
+      />
 
       <div style={{ display: "grid", gap: 10 }}>
         {plan.playbook.map((step, i) => {
