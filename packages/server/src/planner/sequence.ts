@@ -160,6 +160,7 @@ export function gapSummary(from: SetTrack, to: SetTrack, options: PlanOptions): 
     bpmDiff: d,
     compatible,
     risk: !compatible || d >= 0.08,
+    mixOutSec: strat.mixOutSec,
   };
 }
 

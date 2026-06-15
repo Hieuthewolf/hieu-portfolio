@@ -4,6 +4,7 @@ import { eqBands, type DeckBands, type PlayUpdate } from "../audio/engine";
 
 interface DeckEQProps {
   beatmatch: boolean;
+  vocalEase?: boolean;
   subscribe: (cb: (f: PlayUpdate | null) => void) => () => void;
 }
 
@@ -14,7 +15,7 @@ const BANDS: Array<keyof DeckBands> = ["high", "mid", "low"]; // top-to-bottom
  * imperatively from the per-frame engine update (DOM writes, no re-renders) so
  * you can watch the lows hand over from A to B mid-transition.
  */
-export function DeckEQ({ beatmatch, subscribe }: DeckEQProps) {
+export function DeckEQ({ beatmatch, vocalEase = false, subscribe }: DeckEQProps) {
   const fills = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
@@ -30,11 +31,11 @@ export function DeckEQ({ beatmatch, subscribe }: DeckEQProps) {
         set("b", { low: 1, mid: 1, high: 1 });
         return;
       }
-      const { a, b } = eqBands(f.mix.progress, beatmatch);
+      const { a, b } = eqBands(f.mix.progress, beatmatch, vocalEase);
       set("a", a);
       set("b", b);
     });
-  }, [subscribe, beatmatch]);
+  }, [subscribe, beatmatch, vocalEase]);
 
   const deck = (tag: "A" | "B", key: "a" | "b") => (
     <div style={{ display: "grid", gap: 6, justifyItems: "center" }}>

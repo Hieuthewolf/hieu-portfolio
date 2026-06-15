@@ -245,7 +245,7 @@ export function App() {
 
             {plan && A && B && (
               <div style={{ marginBottom: 16 }}>
-                <DeckEQ beatmatch={plan.beatmatch} subscribe={subscribe} />
+                <DeckEQ beatmatch={plan.beatmatch} vocalEase={plan.vocalEase} subscribe={subscribe} />
               </div>
             )}
 

@@ -17,6 +17,7 @@ import type {
   Strategy,
   Technique,
   TransitionPlan,
+  VocalRegion,
 } from "./types.js";
 
 export function clamp(x: number, lo: number, hi: number): number {
@@ -44,6 +45,21 @@ function findSection(sections: Section[], kind: string, preferLast: boolean): Se
   const matches = sections.filter((s) => s.kind === kind);
   if (matches.length === 0) return null;
   return preferLast ? matches[matches.length - 1]! : matches[0]!;
+}
+
+/**
+ * The start (seconds) of a drop worth mixing OUT of mid-song, or undefined. A drop
+ * counts when something plays after it (it isn't the track's final section) and it
+ * lands past the opening quarter. Lets the offline heuristic pick an interior drop
+ * instead of always draining to the breakdown/outro.
+ */
+function interiorDropSec(sections: Section[], duration: number): number | undefined {
+  const last = sections[sections.length - 1];
+  const interior = sections.filter(
+    (s) => s.kind === "drop" && (!last || s.startSec < last.startSec),
+  );
+  if (interior.length === 0) return undefined;
+  return (interior.find((d) => d.startSec >= duration * 0.25) ?? interior[0]!).startSec;
 }
 
 const CONTROL_PARTS: ControlPart[] = [
@@ -101,6 +117,33 @@ export function inferControls(action: string): ControlRef[] {
   return out;
 }
 
+/** Does a confident vocal region overlap [start, end] (seconds)? */
+function hasVocalIn(regions: VocalRegion[] | undefined, start: number, end: number): boolean {
+  if (!regions) return false;
+  return regions.some((r) => r.endSec > start && r.startSec < end && r.confidence >= 0.5);
+}
+
+/**
+ * When two vocals ride the blend, make sure the coaching says to ease the mids — insert a
+ * mid-EQ swap step (unless the model already wrote one) so the board lights the right knob.
+ */
+function ensureVocalStep(playbook: PlaybookStep[], phraseBars: number): PlaybookStep[] {
+  if (playbook.some((s) => s.controls?.some((c) => c.part === "midEQ"))) return playbook;
+  const atBar = Math.max(1, Math.round(phraseBars * 0.6));
+  const step: PlaybookStep = {
+    atBar,
+    action:
+      "Both tracks have a vocal here. As B's vocal comes in, ease track A's MID (the middle EQ " +
+      "knob) down and bring B's MID up so the two voices don't fight.",
+    controls: [
+      { target: "A", part: "midEQ", dir: "down" },
+      { target: "B", part: "midEQ", dir: "up" },
+    ],
+  };
+  const idx = playbook.findIndex((s) => s.atBar > atBar);
+  return idx === -1 ? [...playbook, step] : [...playbook.slice(0, idx), step, ...playbook.slice(idx)];
+}
+
 /** Keep a step's valid structured controls; if it has none, fall back to inference. */
 export function normalizeControls(step: PlaybookStep): PlaybookStep {
   const valid = (step.controls ?? []).filter(isControlRef);
@@ -131,6 +174,13 @@ export function resolve(input: PlanInput, s: Strategy, source: "llm" | "heuristi
 
   const bpmDiff = Math.abs(a.bpm - b.bpm) / ((a.bpm + b.bpm) / 2);
 
+  // Both tracks singing across the blend → ease the mids (and coach it).
+  const vocalEase =
+    hasVocalIn(a.vocalRegions, mixStartA, mixStartA + transLen) &&
+    hasVocalIn(b.vocalRegions, mixStartB, mixStartB + transLen);
+  let playbook = s.playbook.map(normalizeControls);
+  if (vocalEase) playbook = ensureVocalStep(playbook, s.phraseBars);
+
   return {
     mixStartA,
     mixStartB,
@@ -140,13 +190,15 @@ export function resolve(input: PlanInput, s: Strategy, source: "llm" | "heuristi
     warp: s.warpBToA ? a.bpm / b.bpm : 1,
     rationale: s.rationale,
     coachNote: s.coachNote,
-    playbook: s.playbook.map(normalizeControls),
+    playbook,
     mixOutSection: s.mixOutSection,
+    mixOutSec: s.mixOutSec,
     mixInSection: s.mixInSection,
     phraseBars: s.phraseBars,
     beatmatch: s.warpBToA,
     bpmDiff,
     compatible: camelotCompatible(a.camelot, b.camelot),
+    vocalEase,
     source,
   };
 }
@@ -162,6 +214,7 @@ export function heuristicStrategy(input: PlanInput): Strategy {
   let technique: Technique;
   let warpBToA: boolean;
   let mixOutSection: MixOutSection;
+  let mixOutSec: number | undefined;
   let mixInSection: MixInSection;
   let difficulty: Difficulty;
   let rationale: string;
@@ -169,13 +222,28 @@ export function heuristicStrategy(input: PlanInput): Strategy {
   if (options.beatmatch && bpmDiff < 0.08) {
     technique = "Bass-swap blend";
     warpBToA = true;
-    mixOutSection = hasBreak ? "breakdown" : "outro";
     mixInSection = "intro";
     difficulty = "easy";
-    rationale =
-      `The tempos are close, so you can ride them together. Bring B in over A's ${mixOutSection} ` +
-      `(its calmer stretch) and let B's intro build.` +
-      (compatible ? ` The keys (${a.camelot} and ${b.camelot}) get along, so it'll sound smooth.` : "");
+    // Default: mix out of A's calmest stretch. But if a strong drop sits well before
+    // that stretch, ride the drop and mix out there rather than draining a long tail.
+    const transLen = options.phraseBars * a.beat * 4;
+    const labelled = findSection(a.sections, hasBreak ? "breakdown" : "outro", true);
+    const labelledSec = labelled ? labelled.startSec : a.duration * 0.85;
+    const drop = interiorDropSec(a.sections, a.duration);
+    if (drop !== undefined && labelledSec - drop >= transLen) {
+      mixOutSection = "drop";
+      mixOutSec = drop;
+      rationale =
+        `The tempos are close, so you can ride them together. A's drop hits well before its ` +
+        `calmer stretch, so mix out on that drop and bring B in beneath it.` +
+        (compatible ? ` The keys (${a.camelot} and ${b.camelot}) get along, so it'll sound smooth.` : "");
+    } else {
+      mixOutSection = hasBreak ? "breakdown" : "outro";
+      rationale =
+        `The tempos are close, so you can ride them together. Bring B in over A's ${mixOutSection} ` +
+        `(its calmer stretch) and let B's intro build.` +
+        (compatible ? ` The keys (${a.camelot} and ${b.camelot}) get along, so it'll sound smooth.` : "");
+    }
   } else {
     technique = "Phrase cut";
     warpBToA = false;
@@ -232,6 +300,7 @@ export function heuristicStrategy(input: PlanInput): Strategy {
   return {
     technique,
     mixOutSection,
+    mixOutSec,
     mixInSection,
     phraseBars,
     warpBToA,

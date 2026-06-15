@@ -84,6 +84,24 @@ export function downmix(buffer: AudioBuffer): Float32Array {
   return out;
 }
 
+/**
+ * Center (mid) and stereo-difference (side) channels: mid=(L+R)/2, side=(L−R)/2.
+ * A mono buffer has an all-zero side. Lead vocals are usually panned center, so a
+ * strong mid-vs-side ratio in the vocal band is a cue for where the vocal sits.
+ */
+export function midSide(buffer: AudioBuffer): { mid: Float32Array; side: Float32Array } {
+  const n = buffer.length;
+  const mid = new Float32Array(n);
+  const side = new Float32Array(n);
+  const L = buffer.getChannelData(0);
+  const R = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : L;
+  for (let i = 0; i < n; i++) {
+    mid[i] = 0.5 * (L[i] + R[i]);
+    side[i] = 0.5 * (L[i] - R[i]);
+  }
+  return { mid, side };
+}
+
 export function computePeaks(mono: Float32Array, buckets: number): Array<[number, number]> {
   const out: Array<[number, number]> = new Array(buckets);
   const step = Math.floor(mono.length / buckets) || 1;

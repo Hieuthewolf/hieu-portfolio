@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { analyzeBuffer } from "../audio/analyze";
 import { AudioEngine, type MixState, type PlayUpdate } from "../audio/engine";
-import { gapsFor, localSetPlan, requestSetPlan, setTimeline } from "../audio/planClient";
+import {
+  gapsFor,
+  localSetPlan,
+  requestSetPlan,
+  requestSetTimeline,
+  setTimeline,
+} from "../audio/planClient";
 import type { SetOptions, SetPlan, Track, TransitionPlan } from "../audio/types";
 
 interface NowPlaying {
@@ -28,6 +34,10 @@ export function useSetBuilder() {
 
   const [tracks, setTracks] = useState<Track[]>([]);
   const [setPlan, setSetPlan] = useState<SetPlan | null>(null);
+  // The LLM-resolved per-pair schedule, cached from the last Build. Cleared on any
+  // edit (reorder/add/remove/option) so rehearsal falls back to the instant local
+  // heuristic timeline — which is itself now mid-song-capable.
+  const [timeline, setTimelineState] = useState<TransitionPlan[] | null>(null);
   const [opts, setOpts] = useState<SetOptions>(DEFAULT_SET_OPTS);
   const [planning, setPlanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +79,7 @@ export function useSetBuilder() {
     async (files: File[]) => {
       setError(null);
       setSetPlan(null); // a changed track list invalidates the order
+      setTimelineState(null);
       for (const file of files) {
         try {
           const buffer = await engine.decode(file);
@@ -91,6 +102,7 @@ export function useSetBuilder() {
 
   const removeTrack = useCallback((id: string) => {
     setSetPlan(null);
+    setTimelineState(null);
     setTracks((prev) => prev.filter((t) => t.id !== id));
     setOpts((o) => ({
       ...o,
@@ -117,6 +129,7 @@ export function useSetBuilder() {
 
   const setOption = useCallback(<K extends keyof SetOptions>(k: K, v: SetOptions[K]) => {
     setOpts((o) => ({ ...o, [k]: v }));
+    setTimelineState(null); // a changed option restages the heuristic timeline until the next Build
   }, []);
 
   const buildSet = useCallback(async () => {
@@ -124,9 +137,14 @@ export function useSetBuilder() {
     setPlanning(true);
     setError(null);
     try {
-      setSetPlan(await requestSetPlan(tracks, opts));
+      const plan = await requestSetPlan(tracks, opts);
+      setSetPlan(plan);
+      const byId = new Map(tracks.map((t) => [t.id, t]));
+      const ordered = plan.order.map((id) => byId.get(id)!).filter(Boolean);
+      setTimelineState(await requestSetTimeline(ordered, opts));
     } catch {
       setSetPlan(localSetPlan(tracks, opts)); // offline fallback
+      setTimelineState(null); // rehearsal uses the local heuristic timeline
     } finally {
       setPlanning(false);
     }
@@ -146,6 +164,7 @@ export function useSetBuilder() {
         const orderedTracks = order.map((id) => byId.get(id)!).filter(Boolean);
         return { ...prev, order, gaps: gapsFor(orderedTracks, opts) };
       });
+      setTimelineState(null); // a manual reorder restages the local heuristic timeline
     },
     [tracks, opts],
   );
@@ -157,7 +176,8 @@ export function useSetBuilder() {
     const byId = new Map(tracks.map((t) => [t.id, t]));
     const ordered = setPlan.order.map((id) => byId.get(id)!).filter(Boolean);
     if (ordered.length < 2) return;
-    const plans = setTimeline(ordered, opts);
+    const plans =
+      timeline && timeline.length === ordered.length - 1 ? timeline : setTimeline(ordered, opts);
     reelRef.current = false;
     setPlaying(true);
     npKey.current = "";
@@ -185,7 +205,7 @@ export function useSetBuilder() {
         mixKey.current = "";
       },
     );
-  }, [setPlan, tracks, opts, engine, emit, pushCoarseMix]);
+  }, [setPlan, tracks, opts, timeline, engine, emit, pushCoarseMix]);
 
   // Play just the transitions, one at a time, back to back: each is the same
   // lead-in + bass-swap blend as the coach, chained over consecutive pairs. The
@@ -195,7 +215,8 @@ export function useSetBuilder() {
     const byId = new Map(tracks.map((t) => [t.id, t]));
     const ordered = setPlan.order.map((id) => byId.get(id)!).filter(Boolean);
     if (ordered.length < 2) return;
-    const plans = setTimeline(ordered, opts);
+    const plans =
+      timeline && timeline.length === ordered.length - 1 ? timeline : setTimeline(ordered, opts);
     reelRef.current = true;
     setPlaying(true);
     mixKey.current = "";
@@ -227,7 +248,7 @@ export function useSetBuilder() {
       );
     };
     playOne();
-  }, [setPlan, tracks, opts, engine, emit, pushCoarseMix]);
+  }, [setPlan, tracks, opts, timeline, engine, emit, pushCoarseMix]);
 
   const stopPlayback = useCallback(() => {
     reelRef.current = false;

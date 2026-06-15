@@ -45,6 +45,12 @@ const typeDefs = /* GraphQL */ `
     startSec: Float!
   }
 
+  input VocalRegionInput {
+    startSec: Float!
+    endSec: Float!
+    confidence: Float!
+  }
+
   input TrackFeaturesInput {
     bpm: Float!
     beat: Float!
@@ -53,6 +59,7 @@ const typeDefs = /* GraphQL */ `
     camelot: String
     duration: Float!
     sections: [SectionInput!]!
+    vocalRegions: [VocalRegionInput!]
   }
 
   input PlanOptionsInput {
@@ -83,11 +90,13 @@ const typeDefs = /* GraphQL */ `
     coachNote: String!
     playbook: [PlaybookStep!]!
     mixOutSection: String!
+    mixOutSec: Float
     mixInSection: String!
     phraseBars: Int!
     beatmatch: Boolean!
     bpmDiff: Float!
     compatible: Boolean!
+    vocalEase: Boolean!
     source: String!
   }
 
@@ -131,6 +140,7 @@ const typeDefs = /* GraphQL */ `
     bpmDiff: Float!
     compatible: Boolean!
     risk: Boolean!
+    mixOutSec: Float
   }
 
   type SetPlan {

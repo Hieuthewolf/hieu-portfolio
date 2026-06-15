@@ -14,6 +14,13 @@ export interface Section {
   startSec: number;
 }
 
+/** A stretch where lead vocals are present (detected client-side from the stereo mix). */
+export interface VocalRegion {
+  startSec: number;
+  endSec: number;
+  confidence: number;
+}
+
 export interface TrackFeatures {
   bpm: number;
   beat: number; // seconds per beat
@@ -22,6 +29,8 @@ export interface TrackFeatures {
   camelot: string | null;
   duration: number;
   sections: Section[];
+  // Optional — older clients omit it; the planner then plans exactly as before.
+  vocalRegions?: VocalRegion[];
 }
 
 export type SetMoment = "warmup" | "peak" | "cooldown";
@@ -105,11 +114,17 @@ export interface TransitionPlan {
   coachNote: string;
   playbook: PlaybookStep[];
   mixOutSection: MixOutSection;
+  // Echoed back when the strategy pinned an exact mid-song out-point, so a client
+  // can re-resolve (nudge/phrase change) without losing the interior drop.
+  mixOutSec?: number;
   mixInSection: MixInSection;
   phraseBars: number;
   beatmatch: boolean;
   bpmDiff: number;
   compatible: boolean;
+  // True when both tracks carry a vocal across the blend, so playback eases the mid
+  // (vocal) band the way it eases the bass — computed in code, never by the LLM.
+  vocalEase: boolean;
   source: "llm" | "heuristic";
 }
 
@@ -161,6 +176,8 @@ export interface SetGap {
   bpmDiff: number;
   compatible: boolean;
   risk: boolean;
+  // Set when this adjacency mixes out of a mid-song drop (not A's ending), in seconds.
+  mixOutSec?: number;
 }
 
 export interface SetPlan {

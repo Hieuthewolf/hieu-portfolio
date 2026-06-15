@@ -102,6 +102,72 @@ describe("mid-song drop out-point (mixOutSec)", () => {
   });
 });
 
+describe("heuristic interior-drop selection", () => {
+  it("mixes out of a strong interior drop when the calm stretch is far off", () => {
+    const a = {
+      ...input.a,
+      sections: [
+        { kind: "drop" as const, startBar: 32, endBar: 48, startSec: 64 },
+        { kind: "outro" as const, startBar: 140, endBar: 160, startSec: 268 },
+      ],
+    };
+    const s = heuristicStrategy({ ...input, a });
+    expect(s.mixOutSection).toBe("drop");
+    expect(s.mixOutSec).toBe(64);
+    const p = resolve({ ...input, a }, s, "heuristic");
+    expect(p.mixStartA).toBeLessThan(75); // lands on the drop, not the distant outro
+  });
+
+  it("rides to the calm stretch when it sits right after the drop", () => {
+    const a = {
+      ...input.a,
+      sections: [
+        { kind: "drop" as const, startBar: 32, endBar: 40, startSec: 64 },
+        { kind: "breakdown" as const, startBar: 40, endBar: 56, startSec: 80 },
+        { kind: "outro" as const, startBar: 140, endBar: 160, startSec: 268 },
+      ],
+    };
+    const s = heuristicStrategy({ ...input, a });
+    expect(s.mixOutSec).toBeUndefined();
+    expect(s.mixOutSection).toBe("breakdown");
+  });
+
+  it("leaves mixOutSec unset for a plain track with no interior drop", () => {
+    expect(heuristicStrategy(input).mixOutSec).toBeUndefined();
+  });
+});
+
+describe("vocal-aware blend (vocalEase)", () => {
+  it("flags vocalEase and injects a mid-EQ step when both tracks sing across the blend", () => {
+    const a = { ...input.a, vocalRegions: [{ startSec: 110, endSec: 150, confidence: 0.8 }] };
+    const b = { ...input.b, vocalRegions: [{ startSec: 2, endSec: 40, confidence: 0.8 }] };
+    const inp = { ...input, a, b };
+    const p = resolve(inp, heuristicStrategy(inp), "heuristic");
+    expect(p.vocalEase).toBe(true);
+    const midStep = p.playbook.find((s) => s.controls?.some((c) => c.part === "midEQ"));
+    expect(midStep?.controls).toEqual([
+      { target: "A", part: "midEQ", dir: "down" },
+      { target: "B", part: "midEQ", dir: "up" },
+    ]);
+  });
+
+  it("leaves vocalEase off when only one track has a vocal in the window", () => {
+    const a = { ...input.a, vocalRegions: [{ startSec: 110, endSec: 150, confidence: 0.8 }] };
+    const inp = { ...input, a };
+    const p = resolve(inp, heuristicStrategy(inp), "heuristic");
+    expect(p.vocalEase).toBe(false);
+    expect(p.playbook.some((s) => s.controls?.some((c) => c.part === "midEQ"))).toBe(false);
+  });
+
+  it("ignores low-confidence vocal blips", () => {
+    const a = { ...input.a, vocalRegions: [{ startSec: 110, endSec: 150, confidence: 0.2 }] };
+    const b = { ...input.b, vocalRegions: [{ startSec: 2, endSec: 40, confidence: 0.2 }] };
+    expect(resolve({ ...input, a, b }, heuristicStrategy({ ...input, a, b }), "heuristic").vocalEase).toBe(
+      false,
+    );
+  });
+});
+
 describe("FLX4 control mapping", () => {
   it("carries hand-authored controls from the heuristic through resolve", () => {
     const p = resolve(input, heuristicStrategy(input), "heuristic");
