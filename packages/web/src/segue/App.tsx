@@ -31,7 +31,7 @@ export function App() {
     playMix,
     playTransition,
     playTrack,
-    setMarker,
+    seekTo,
     loadTrack,
     keyShift,
     setKeyShift,
@@ -178,17 +178,13 @@ export function App() {
                 tag="A"
                 role="playing"
                 track={A}
-                isPlaying={playing === "A"}
                 onFile={(file) => void loadFile("A", file)}
-                onPlayToggle={() => playTrack("A")}
               />
               <TrackSlot
                 tag="B"
                 role="incoming"
                 track={B}
-                isPlaying={playing === "B"}
                 onFile={(file) => void loadFile("B", file)}
-                onPlayToggle={() => playTrack("B")}
               />
             </div>
 
@@ -199,11 +195,14 @@ export function App() {
                     features={A.features}
                     region={regionA}
                     label="Track A"
-                    cursor={plan ? plan.mixStartA : A.cursor}
-                    cursorLabel={plan ? "mix out" : null}
+                    mark={plan ? plan.mixStartA : null}
+                    markLabel="mix out"
+                    position={A.cursor}
+                    playing={playing === "A"}
                     slot="A"
                     subscribe={subscribe}
-                    onSeek={(t) => setMarker("A", t)}
+                    onSeek={(t) => seekTo("A", t)}
+                    onPlayPause={() => playTrack("A")}
                   />
                 )}
                 {B && (
@@ -211,11 +210,14 @@ export function App() {
                     features={B.features}
                     region={regionB}
                     label="Track B"
-                    cursor={B.cursor}
-                    cursorLabel={plan ? "mix in" : null}
+                    mark={plan ? plan.mixStartB : null}
+                    markLabel="mix in"
+                    position={B.cursor}
+                    playing={playing === "B"}
                     slot="B"
                     subscribe={subscribe}
-                    onSeek={(t) => setMarker("B", t)}
+                    onSeek={(t) => seekTo("B", t)}
+                    onPlayPause={() => playTrack("B")}
                   />
                 )}
               </div>

@@ -16,24 +16,42 @@ interface WaveformProps {
   features: AudioFeatures;
   region: { start: number; end: number } | null;
   label?: string;
-  cursor: number | null;
-  cursorLabel?: string | null;
+  // The transition mix in/out point, set by the planner — drawn as the accent marker.
+  mark?: number | null;
+  markLabel?: string | null;
+  // Where playback starts / is paused. Set by clicking the waveform.
+  position: number | null;
+  playing?: boolean;
   slot: "A" | "B";
   subscribe: (cb: (f: PlayUpdate | null) => void) => () => void;
   onSeek?: (time: number) => void;
+  onPlayPause?: () => void;
 }
 
 const HEIGHT = 96;
 const RIBBON = 14;
 
-export function Waveform({ features, region, label, cursor, cursorLabel, slot, subscribe, onSeek }: WaveformProps) {
+export function Waveform({
+  features,
+  region,
+  label,
+  mark,
+  markLabel,
+  position,
+  playing,
+  slot,
+  subscribe,
+  onSeek,
+  onPlayPause,
+}: WaveformProps) {
   const baseRef = useRef<HTMLCanvasElement | null>(null);
   const overlayRef = useRef<HTMLCanvasElement | null>(null);
+  const hoverRef = useRef<HTMLDivElement | null>(null);
   const dimsRef = useRef({ w: 0, dpr: 1 });
 
-  // Static layers (section ribbon, region, peaks, cursor). These are the
-  // expensive draws — hundreds of stroked segments — so they run only when the
-  // track, region, or cursor actually change, never per playback frame.
+  // Static layers (section ribbon, region, peaks, mix marker, play position).
+  // These are the expensive draws — hundreds of stroked segments — so they run
+  // only when the track, region, or markers actually change, never per frame.
   useEffect(() => {
     const base = baseRef.current;
     const overlay = overlayRef.current;
@@ -89,18 +107,36 @@ export function Waveform({ features, region, label, cursor, cursorLabel, slot, s
     ctx.stroke();
     ctx.globalAlpha = 1;
 
-    // Cursor marker.
-    if (cursor != null) {
-      const cx = (cursor / dur) * w;
+    // Mix marker (planner's mix in/out point).
+    if (mark != null) {
+      const mx = (mark / dur) * w;
       ctx.strokeStyle = theme.accent;
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(cx, waveTop);
-      ctx.lineTo(cx, h);
+      ctx.moveTo(mx, waveTop);
+      ctx.lineTo(mx, h);
       ctx.stroke();
       ctx.lineWidth = 1;
     }
-  }, [features, region, label, cursor, cursorLabel]);
+
+    // Play position (where audition starts / is paused) — a handle so it reads
+    // as a draggable playhead, distinct from the mix marker.
+    if (position != null) {
+      const px = (position / dur) * w;
+      ctx.fillStyle = theme.ink;
+      ctx.strokeStyle = theme.ink;
+      ctx.beginPath();
+      ctx.moveTo(px, waveTop);
+      ctx.lineTo(px, h);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(px - 4, waveTop);
+      ctx.lineTo(px + 4, waveTop);
+      ctx.lineTo(px, waveTop + 5);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }, [features, region, mark, position]);
 
   // Playhead. Driven imperatively by per-frame engine updates — clear + one
   // line on the overlay canvas, so a moving playhead costs no React renders.
@@ -123,11 +159,28 @@ export function Waveform({ features, region, label, cursor, cursorLabel, slot, s
     });
   }, [subscribe, slot]);
 
-  const handleClick = (e: MouseEvent<HTMLCanvasElement>) => {
-    if (!onSeek) return;
+  const xToTime = (e: MouseEvent<HTMLCanvasElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const frac = (e.clientX - rect.left) / rect.width;
-    onSeek(frac * features.duration);
+    return { frac: Math.min(1, Math.max(0, frac)), time: frac * features.duration };
+  };
+
+  const handleClick = (e: MouseEvent<HTMLCanvasElement>) => {
+    if (!onSeek) return;
+    onSeek(xToTime(e).time);
+  };
+
+  // Hover guide + time readout, updated imperatively to stay off the render path.
+  const handleHover = (e: MouseEvent<HTMLCanvasElement>) => {
+    const hover = hoverRef.current;
+    if (!hover || !onSeek) return;
+    const { frac, time } = xToTime(e);
+    hover.style.opacity = "1";
+    hover.style.left = `${frac * 100}%`;
+    hover.textContent = fmt(time);
+  };
+  const hideHover = () => {
+    if (hoverRef.current) hoverRef.current.style.opacity = "0";
   };
 
   return (
@@ -144,7 +197,7 @@ export function Waveform({ features, region, label, cursor, cursorLabel, slot, s
           }}
         >
           {label}
-          {cursorLabel ? ` · ${cursorLabel}` : ""}
+          {markLabel && mark != null ? ` · ${markLabel}` : ""}
         </div>
       )}
       <div style={{ position: "relative", width: "100%", height: HEIGHT }}>
@@ -155,15 +208,60 @@ export function Waveform({ features, region, label, cursor, cursorLabel, slot, s
         <canvas
           ref={overlayRef}
           onClick={handleClick}
+          onMouseMove={handleHover}
+          onMouseLeave={hideHover}
           style={{
             position: "absolute",
             inset: 0,
             width: "100%",
             height: HEIGHT,
             display: "block",
-            cursor: onSeek ? "text" : "default",
+            cursor: onSeek ? "pointer" : "default",
           }}
         />
+        {/* Hover time readout — positioned/toggled imperatively in handleHover. */}
+        <div
+          ref={hoverRef}
+          style={{
+            position: "absolute",
+            top: RIBBON + 2,
+            transform: "translateX(-50%)",
+            opacity: 0,
+            pointerEvents: "none",
+            fontFamily: theme.mono,
+            fontSize: 10,
+            color: theme.surface,
+            background: theme.ink,
+            borderRadius: 4,
+            padding: "1px 5px",
+            transition: "opacity 0.1s",
+            whiteSpace: "nowrap",
+          }}
+        />
+        {onPlayPause && (
+          <button
+            onClick={onPlayPause}
+            aria-label={playing ? "Pause" : "Play"}
+            style={{
+              position: "absolute",
+              left: 8,
+              bottom: 8,
+              width: 30,
+              height: 30,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 11,
+              border: "none",
+              background: theme.ink,
+              color: theme.surface,
+              borderRadius: 999,
+              cursor: "pointer",
+            }}
+          >
+            {playing ? "❚❚" : "▶"}
+          </button>
+        )}
       </div>
       <div
         style={{
