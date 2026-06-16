@@ -8,12 +8,10 @@ interface TrackSlotProps {
   tag: "A" | "B";
   role: string;
   track: Track | null;
-  isPlaying: boolean;
   onFile: (file: File) => void;
-  onPlayToggle: () => void;
 }
 
-export function TrackSlot({ tag, role, track, isPlaying, onFile, onPlayToggle }: TrackSlotProps) {
+export function TrackSlot({ tag, role, track, onFile }: TrackSlotProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const f = track?.features;
 
@@ -28,47 +26,28 @@ export function TrackSlot({ tag, role, track, isPlaying, onFile, onPlayToggle }:
         gap: 12,
       }}
     >
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-          <span
-            style={{
-              fontFamily: theme.serif,
-              fontSize: 22,
-              fontWeight: 600,
-              color: theme.accent,
-            }}
-          >
-            {tag}
-          </span>
-          <span
-            style={{
-              fontFamily: theme.mono,
-              fontSize: 10.5,
-              letterSpacing: "0.14em",
-              textTransform: "uppercase",
-              color: theme.muted,
-            }}
-          >
-            {role}
-          </span>
-        </div>
-        {track && (
-          <button
-            onClick={onPlayToggle}
-            style={{
-              fontFamily: theme.mono,
-              fontSize: 11,
-              border: `1px solid ${theme.line}`,
-              background: isPlaying ? theme.ink : "transparent",
-              color: isPlaying ? theme.surface : theme.ink,
-              borderRadius: 999,
-              padding: "5px 12px",
-              cursor: "pointer",
-            }}
-          >
-            {isPlaying ? "■ stop" : "▶ play"}
-          </button>
-        )}
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+        <span
+          style={{
+            fontFamily: theme.serif,
+            fontSize: 22,
+            fontWeight: 600,
+            color: theme.accent,
+          }}
+        >
+          {tag}
+        </span>
+        <span
+          style={{
+            fontFamily: theme.mono,
+            fontSize: 10.5,
+            letterSpacing: "0.14em",
+            textTransform: "uppercase",
+            color: theme.muted,
+          }}
+        >
+          {role}
+        </span>
       </div>
 
       <input

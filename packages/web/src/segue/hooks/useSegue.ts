@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { analyzeBuffer } from "../audio/analyze";
-import { clamp, snapGrid } from "../audio/dsp";
+import { clamp } from "../audio/dsp";
 import { AudioEngine, type MixState, type PlayUpdate } from "../audio/engine";
 import { heuristicStrategy, requestPlan, resolvePlan, strategyFromPlan } from "../audio/planClient";
 import { suggestFix } from "../audio/fix";
@@ -40,6 +40,9 @@ export function useSegue() {
   // Only *coarse* changes (mix phase / bar boundary) flow through `mix` state.
   const listenersRef = useRef(new Set<(f: PlayUpdate | null) => void>());
   const mixKeyRef = useRef("");
+  // Latest single-track playhead position in seconds, captured per frame so we
+  // can freeze it on pause.
+  const lastPosRef = useRef(0);
   const subscribe = useCallback((cb: (f: PlayUpdate | null) => void) => {
     listenersRef.current.add(cb);
     return () => {
@@ -85,7 +88,6 @@ export function useSegue() {
           : 0;
       setKeyShift(shift);
     }
-    setTracks((prev) => (prev.B ? { ...prev, B: { ...prev.B, cursor: p.mixStartB } } : prev));
   }, []);
 
   const loadFile = useCallback(
@@ -172,6 +174,11 @@ export function useSegue() {
   const onUpdate = useCallback(
     (u: PlayUpdate) => {
       emit(u); // smooth, per-frame — no re-render
+      // Capture the single-track playhead so pause can freeze it.
+      if (!u.mix) {
+        const t = tracksRef.current[u.slot];
+        if (t) lastPosRef.current = u.head * t.features.duration;
+      }
       // Mirror to React state only when the discrete phase/bar actually changes.
       const key = u.mix ? `${u.mix.phase}:${u.mix.bar}` : "none";
       if (key !== mixKeyRef.current) {
@@ -221,14 +228,22 @@ export function useSegue() {
     (slot: Slot) => {
       const t = tracksRef.current[slot];
       if (!t) return;
+      // Pause: freeze the playhead at the current position and hold it there.
       if (playingRef.current === slot) {
-        stop();
+        engine.stop();
+        emit(null);
+        const pos = lastPosRef.current;
+        setTracks((prev) => {
+          const cur = prev[slot];
+          return cur ? { ...prev, [slot]: { ...cur, cursor: pos } } : prev;
+        });
+        setPlaying(null);
         return;
       }
       setPlaying(slot);
       void engine.playTrack(t, slot, onUpdate, onEnd);
     },
-    [engine, onUpdate, onEnd, stop],
+    [engine, onUpdate, onEnd, emit],
   );
 
   // Load an already-decoded track straight into a slot (the Set Builder hand-off).
@@ -248,21 +263,23 @@ export function useSegue() {
     [stop],
   );
 
-  const setMarker = useCallback((slot: Slot, time: number) => {
-    setTracks((prev) => {
-      const t = prev[slot];
-      if (!t) return prev;
-      const { phase, beat, duration } = t.features;
-      const snapped = clamp(snapGrid(time, phase, beat * 4), 0, duration - 0.1);
-      if (slot === "B" && planRef.current) {
-        const v = Math.min(snapped, duration - planRef.current.transLen - 0.1);
-        setPlan((p) => (p ? { ...p, mixStartB: v } : p));
-        return { ...prev, B: { ...t, cursor: v } };
+  // Audition seek: set where playback starts (free, no grid snap). If that slot
+  // is already playing, jump the playhead there live.
+  const seekTo = useCallback(
+    (slot: Slot, time: number) => {
+      const t = tracksRef.current[slot];
+      if (!t) return;
+      const pos = clamp(time, 0, t.features.duration - 0.1);
+      setTracks((prev) => {
+        const cur = prev[slot];
+        return cur ? { ...prev, [slot]: { ...cur, cursor: pos } } : prev;
+      });
+      if (playingRef.current === slot) {
+        void engine.playTrack({ ...t, cursor: pos }, slot, onUpdate, onEnd);
       }
-      const updated: Track = { ...t, cursor: snapped };
-      return slot === "A" ? { ...prev, A: updated } : { ...prev, B: updated };
-    });
-  }, []);
+    },
+    [engine, onUpdate, onEnd],
+  );
 
   return {
     tracks,
@@ -281,7 +298,7 @@ export function useSegue() {
     playMix,
     playTransition,
     playTrack,
-    setMarker,
+    seekTo,
     loadTrack,
     keyShift,
     setKeyShift,

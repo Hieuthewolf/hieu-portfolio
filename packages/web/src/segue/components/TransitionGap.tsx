@@ -7,6 +7,14 @@ interface TransitionGapProps {
   onClick: () => void;
 }
 
+function fmtTime(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = Math.round(sec % 60)
+    .toString()
+    .padStart(2, "0");
+  return `${m}:${s}`;
+}
+
 /** The connector between two tracks in the set — a clickable transition summary. */
 export function TransitionGap({ gap, tip, onClick }: TransitionGapProps) {
   return (
@@ -35,6 +43,11 @@ export function TransitionGap({ gap, tip, onClick }: TransitionGapProps) {
         <span style={{ color: gap.compatible ? theme.accent : "#B5532F" }}>
           {gap.compatible ? "key ✓" : "key ✕"}
         </span>
+        {gap.mixOutSec != null && (
+          <span style={{ color: theme.ink }} title="Mixes out of a drop mid-song, not at the end">
+            out @{fmtTime(gap.mixOutSec)}
+          </span>
+        )}
         {gap.risk && (
           <span
             style={{

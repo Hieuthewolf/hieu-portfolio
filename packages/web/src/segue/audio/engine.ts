@@ -44,20 +44,26 @@ export interface DeckBands {
 const KILL_DB = -40; // a fully "killed" EQ band
 
 /** Band levels (0 = killed, 1 = full) for each deck at transition progress p (0..1). */
-export function eqBands(p: number, beatmatch: boolean): { a: DeckBands; b: DeckBands } {
+export function eqBands(p: number, beatmatch: boolean, vocalEase = false): { a: DeckBands; b: DeckBands } {
   // Where the bass hands over. A blend swaps late (ride them together first); a
   // non-beatmatched cut swaps early to get off the clashing track quickly.
   const swap = beatmatch ? 0.6 : 0.4;
   const ramp = 0.1;
   const lowA = p < swap ? 1 : clamp(1 - (p - swap) / ramp, 0, 1);
   const lowB = p < swap - 0.05 ? 0 : clamp((p - (swap - 0.05)) / ramp, 0, 1);
-  return { a: { low: lowA, mid: 1, high: 1 }, b: { low: lowB, mid: 1, high: 1 } };
+  // Vocal hand-off: when both tracks have a vocal across the blend, duck A's mids as
+  // B's vocal enters (same shape as the bass swap) so two leads never stack. Off →
+  // mids stay full, i.e. exactly today's behavior.
+  const midA = vocalEase ? lowA : 1;
+  const midB = vocalEase ? lowB : 1;
+  return { a: { low: lowA, mid: midA, high: 1 }, b: { low: lowB, mid: midB, high: 1 } };
 }
 
 function makeEQ(c: AudioContext): {
   input: BiquadFilterNode;
   output: BiquadFilterNode;
   low: BiquadFilterNode;
+  mid: BiquadFilterNode;
 } {
   const low = c.createBiquadFilter();
   low.type = "lowshelf";
@@ -70,7 +76,7 @@ function makeEQ(c: AudioContext): {
   high.type = "highshelf";
   high.frequency.value = 3500;
   low.connect(mid).connect(high);
-  return { input: low, output: high, low };
+  return { input: low, output: high, low, mid };
 }
 
 const toDb = (level: number): number => (level - 1) * -KILL_DB; // 1 → 0dB, 0 → KILL_DB
@@ -216,12 +222,21 @@ export class AudioEngine {
     const STEPS = 24;
     eqA.low.gain.setValueAtTime(0, t0);
     eqB.low.gain.setValueAtTime(KILL_DB, t0);
+    // Vocal swap (mid band) mirrors the bass swap, but only when the plan calls for it.
+    if (plan.vocalEase) {
+      eqA.mid.gain.setValueAtTime(0, t0);
+      eqB.mid.gain.setValueAtTime(KILL_DB, t0);
+    }
     for (let k = 0; k <= STEPS; k++) {
       const p = k / STEPS;
       const t = transStart + p * plan.transLen;
-      const { a, b } = eqBands(p, plan.beatmatch);
+      const { a, b } = eqBands(p, plan.beatmatch, plan.vocalEase);
       eqA.low.gain.linearRampToValueAtTime(toDb(a.low), t);
       eqB.low.gain.linearRampToValueAtTime(toDb(b.low), t);
+      if (plan.vocalEase) {
+        eqA.mid.gain.linearRampToValueAtTime(toDb(a.mid), t);
+        eqB.mid.gain.linearRampToValueAtTime(toDb(b.mid), t);
+      }
     }
 
     srcA.start(t0, start);
@@ -335,24 +350,27 @@ export class AudioEngine {
       }
 
       // Bass-swap EQ: killed as the incoming track, swaps out as the outgoing one.
+      // The mid band rides the same curve only on transitions flagged vocalEase.
+      const easeIn = i >= 1 && !!plans[i - 1]!.vocalEase;
+      const easeOut = i < last && !!plans[i]!.vocalEase;
       eq.low.gain.setValueAtTime(i === 0 ? 0 : KILL_DB, absStart[i]!);
+      if (easeIn) eq.mid.gain.setValueAtTime(KILL_DB, absStart[i]!);
       if (i >= 1) {
         for (let k = 0; k <= STEPS; k++) {
           const p = k / STEPS;
-          eq.low.gain.linearRampToValueAtTime(
-            toDb(eqBands(p, plans[i - 1]!.beatmatch).b.low),
-            absStart[i]! + p * overlapIn[i]!,
-          );
+          const { b } = eqBands(p, plans[i - 1]!.beatmatch, easeIn);
+          eq.low.gain.linearRampToValueAtTime(toDb(b.low), absStart[i]! + p * overlapIn[i]!);
+          if (easeIn) eq.mid.gain.linearRampToValueAtTime(toDb(b.mid), absStart[i]! + p * overlapIn[i]!);
         }
       }
       if (i < last) {
         eq.low.gain.setValueAtTime(0, absTrans[i]!);
+        if (easeOut) eq.mid.gain.setValueAtTime(0, absTrans[i]!);
         for (let k = 0; k <= STEPS; k++) {
           const p = k / STEPS;
-          eq.low.gain.linearRampToValueAtTime(
-            toDb(eqBands(p, plans[i]!.beatmatch).a.low),
-            absTrans[i]! + p * plans[i]!.transLen,
-          );
+          const { a } = eqBands(p, plans[i]!.beatmatch, easeOut);
+          eq.low.gain.linearRampToValueAtTime(toDb(a.low), absTrans[i]! + p * plans[i]!.transLen);
+          if (easeOut) eq.mid.gain.linearRampToValueAtTime(toDb(a.mid), absTrans[i]! + p * plans[i]!.transLen);
         }
       }
 

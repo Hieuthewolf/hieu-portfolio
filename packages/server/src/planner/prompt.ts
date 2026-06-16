@@ -12,6 +12,9 @@ How to mix well:
 to that drop's timestamp (in seconds, read from A's sections). Leave \`mixOutSec\` off to mix out of A's labelled \
 ending section. Only pick a mid-song drop when it's musically stronger than waiting for the outro.
 - Never let both basslines play at once (that's what makes a mix sound muddy) — swap the low EQ on a downbeat.
+- Watch the vocals. You also get each track's vocal stretches (start/end seconds). Two lead vocals at once \
+clash, so prefer bringing B in under an instrumental stretch of A (and on a part of B that isn't singing yet). \
+If the blend can't avoid both singing, ease A's MID (the vocal band) down as B's vocal enters — add that as a step.
 - Favour the most forgiving option that fits the moment: a beatmatched bass-swap blend in compatible keys, or a \
 clean cut on a phrase boundary. Keep fragile moves (double drops) rare. At peak time, keep the energy up.
 
@@ -20,16 +23,23 @@ Worked examples (illustrative — adapt to the real tracks; these lean melodic-b
 breakdown@~2:15; B = Nightlight 150 BPM 10A (B min). 10B↔10A is relative major/minor (harmonic), and 144↔150 is close \
 enough to warp — ride A's breakdown and bring Nightlight in on its intro beneath it: technique "Breakdown swap", \
 mixOutSection "breakdown", mixInSection "intro", 16 bars, warpBToA true. Swap the lows on a downbeat so they don't clash.
-- Mid-song drop (future bass): A = 146 BPM 9A, peak drop@1:08 then a weaker one near the end; B = 146 BPM 8A (one \
-step round the wheel), build@0:30. A's FIRST drop is the moment — mix out there, not at the weak ending: \
-mixOutSection "drop", mixOutSec 68, mixInSection "intro", technique "Bass-swap blend", 16 bars, beatmatch on.
+- Mid-song drop + two vocals (real — Dabin into Illenium): A = Dabin "Alive" (×RUNN vocal) 150 BPM 1B, drop@~1:20 \
+then a softer reprise near the end; B = Illenium "Take You Down" 150 BPM 1B, also vocal-led. Same tempo and key \
+(1B→1B), but both sing — mix out of A's FIRST drop, not the weak reprise, and as Take You Down's vocal enters ease \
+A's mids out so the two voices don't fight: mixOutSection "drop", mixOutSec 80, mixInSection "intro", technique \
+"Bass-swap blend", 16 bars, beatmatch on. Swap the lows on the downbeat, then the mids when B's vocal lands.
 - Big-room, identical key (real — Garrix @ EDC Las Vegas '26): A = Tremor 128 BPM 11A (F#m), drop@~2:00 then a short \
 outro; B = Quantum (×Summer Days vocal) 128 BPM 11A. Same tempo AND key (11A→11A) is the safest big-room move — line \
 the phrases up and bring B's build in under A's drop, then hand over: mixOutSection "drop", mixInSection "build", \
 technique "Bass-swap blend", 16 bars, beatmatch on. Identical keys make a double-drop an option if you're confident.
-- Tempo gap, don't force it: A = 150 BPM 6A melodic dubstep into its outro@3:20; B = 128 BPM 6A big-room. 150 vs 128 \
-is too far to beatmatch cleanly — clean "Phrase cut" on A's outro into B's intro: mixOutSection "outro", \
-mixInSection "intro", warpBToA false, 16 bars.
+- Two emotional vocals, ride the breakdown (real — William Black into Illenium): A = William Black "Deep End" 150 BPM \
+7B, big vocal breakdown; B = Illenium "Crashing" (×Bahari) 150 BPM 7B, vocal-led. Same key (7B→7B) and both sing — \
+ride A's breakdown and bring Crashing in beneath it, easing A's mids down as B's vocal enters: technique "Breakdown \
+swap", mixOutSection "breakdown", mixInSection "intro", 16 bars, warpBToA true.
+- Trance into dubstep, keys clash (real — Seven Lions): A = "Strangers" (×Tove Lo) 140 BPM 5B, euphoric trance into \
+its outro; B = "Rush Over Me" (1999 remix) 138 BPM 8A, a half-time dubstep drop. The vibe flips trance→dubstep and \
+5B↔8A don't line up, so don't force a long blend — phrase-cut clean on the downbeat into B's drop: technique "Phrase \
+cut", mixOutSection "outro", mixInSection "drop", 8 bars, beatmatch on.
 - Festival pace, fast cut (real — Garrix @ EDC '26): A = Biochemical 126 BPM, B = Tremor 128 BPM 11A — their keys don't \
 line up, and at peak the room wants constant energy, so don't ride a long blend. Garrix gave this pair barely a minute: \
 nudge B to match (126→128) and phrase-cut SHORT on the downbeat of A's drop into B's: technique "Phrase cut", \
@@ -155,11 +165,17 @@ function sectionsText(f: TrackFeatures): string {
   );
 }
 
+function vocalsText(f: TrackFeatures): string {
+  if (!f.vocalRegions || f.vocalRegions.length === 0) return "none detected";
+  return f.vocalRegions.map((v) => `${fmtTime(v.startSec)}–${fmtTime(v.endSec)}`).join(", ");
+}
+
 export function renderUser(input: PlanInput): string {
   const { a, b, options } = input;
   const line = (label: string, f: TrackFeatures) =>
     `${label}: ${f.bpm} BPM, ${f.key ?? "unknown"} (Camelot ${f.camelot ?? "?"}), ${f.duration.toFixed(0)}s.\n` +
-    `  sections: ${sectionsText(f)}`;
+    `  sections: ${sectionsText(f)}\n` +
+    `  vocals: ${vocalsText(f)}`;
   return [
     line("Track A (playing)", a),
     line("Track B (incoming)", b),

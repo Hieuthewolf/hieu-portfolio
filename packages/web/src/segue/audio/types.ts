@@ -19,6 +19,13 @@ export interface Section {
   startSec: number;
 }
 
+/** A stretch where lead vocals are present (heuristic: centered + tonal midband energy). */
+export interface VocalRegion {
+  startSec: number;
+  endSec: number;
+  confidence: number; // 0..1
+}
+
 export interface AudioFeatures {
   bpm: number;
   beat: number; // seconds per beat
@@ -31,6 +38,7 @@ export interface AudioFeatures {
   energy: EnergyEnvelope;
   energySummary: EnergySummary;
   sections: Section[];
+  vocalRegions: VocalRegion[];
 }
 
 export type SetMoment = "warmup" | "peak" | "cooldown";
@@ -81,6 +89,9 @@ export interface PlaybookStep {
 export interface Strategy {
   technique: Technique;
   mixOutSection: MixOutSection;
+  // Optional exact out-point in seconds (e.g. a drop mid-song, not just A's ending).
+  // When set, it overrides the labelled-section lookup in resolvePlan() — mirrors the server.
+  mixOutSec?: number;
   mixInSection: MixInSection;
   phraseBars: number;
   warpBToA: boolean;
@@ -101,11 +112,17 @@ export interface TransitionPlan {
   coachNote: string;
   playbook: PlaybookStep[];
   mixOutSection: MixOutSection;
+  // Set when the transition mixes out of an exact mid-song point (not A's ending),
+  // so a nudge/phrase-change re-resolve keeps the same interior drop.
+  mixOutSec?: number;
   mixInSection: MixInSection;
   phraseBars: number;
   beatmatch: boolean;
   bpmDiff: number;
   compatible: boolean;
+  // True when both tracks carry a vocal across the blend, so playback eases the mid
+  // (vocal) band the way it eases the bass — computed in code, never by the LLM.
+  vocalEase: boolean;
   source: "llm" | "heuristic";
 }
 
@@ -139,6 +156,8 @@ export interface SetGap {
   bpmDiff: number;
   compatible: boolean;
   risk: boolean;
+  // Set when this adjacency mixes out of a mid-song drop (not A's ending), in seconds.
+  mixOutSec?: number;
 }
 
 export interface SetPlan {

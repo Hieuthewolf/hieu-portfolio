@@ -15,6 +15,7 @@ function feat(partial: Partial<AudioFeatures>): AudioFeatures {
     energy: { vals: new Float32Array(), hop: 1024, sr: 44100, max: 1 },
     energySummary: { mean: 0.5, peak: 1, arc: 0 },
     sections: [],
+    vocalRegions: [],
     ...partial,
   };
 }
@@ -47,5 +48,35 @@ describe("resolvePlan", () => {
     const nudged = resolvePlan(a, b, strat, 1, "heuristic");
     const bar = a.beat * 4;
     expect(nudged.mixStartA - base.mixStartA).toBeCloseTo(bar, 5);
+  });
+
+  it("honors a mid-song mixOutSec over the labelled section", () => {
+    const aDrops = feat({
+      sections: [
+        { kind: "drop", startBar: 32, endBar: 48, startSec: 64 },
+        { kind: "outro", startBar: 140, endBar: 160, startSec: 268 },
+      ],
+    });
+    const p = resolvePlan(aDrops, b, { ...strat, mixOutSection: "drop", mixOutSec: 64 }, 0, "llm");
+    expect(p.mixStartA).toBeLessThan(75);
+    expect(p.mixOutSec).toBe(64);
+  });
+});
+
+describe("heuristicStrategy interior drop", () => {
+  it("picks a strong interior drop when A's calm stretch is far off", () => {
+    const aDrops = feat({
+      sections: [
+        { kind: "drop", startBar: 32, endBar: 48, startSec: 64 },
+        { kind: "outro", startBar: 140, endBar: 160, startSec: 268 },
+      ],
+    });
+    const s = heuristicStrategy(aDrops, b, opts);
+    expect(s.mixOutSection).toBe("drop");
+    expect(s.mixOutSec).toBe(64);
+  });
+
+  it("leaves mixOutSec unset for a plain track", () => {
+    expect(heuristicStrategy(a, b, opts).mixOutSec).toBeUndefined();
   });
 });
