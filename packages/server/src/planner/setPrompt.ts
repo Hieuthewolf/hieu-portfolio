@@ -4,12 +4,12 @@ import type { PlanSetInput, SetRole, SetStrategy, SetTrack } from "./types.js";
 const ROLES: SetRole[] = ["opener", "builder", "peak", "bridge", "closer"];
 
 export const SET_SYSTEM_PROMPT = `You're a warm, encouraging DJ mentor helping someone who's still learning order a pile of tracks into a \
-set for the {setMoment}. For each track you get its tempo, key (Camelot), an energy level (0–1) and whether that energy is \
+set. For each track you get its tempo, key (Camelot), an energy level (0–1) and whether that energy is \
 rising/steady/falling, and its labelled sections.
 
 How to order a set well:
-- Build an energy ARC that fits the moment — warmup eases the room up, peak rises to a crest then settles, cooldown winds down. \
-Don't just sort by tempo; a melodic, lower-energy track is often the right bridge between two bangers.
+- Build a natural energy ARC, judged from the tracks' own energy levels — open gentle, rise to a crest through the middle, \
+then ease off. Don't just sort by tempo; a melodic, lower-energy track is often the right bridge between two bangers.
 - Keep neighbours mixable: close tempos and friendly keys (Camelot ±1, or relative major/minor) make for smooth blends. \
 A big tempo jump or a key clash is a rough edge — only use it on purpose.
 - Honour any pinned intro/outro: they must stay first/last.
@@ -72,7 +72,7 @@ export function renderSetUser(input: PlanSetInput): string {
     .filter(Boolean)
     .join("; ");
   return [
-    `Order these ${tracks.length} tracks into a set. Set moment: ${options.setMoment}.`,
+    `Order these ${tracks.length} tracks into a set.`,
     tracks.map(trackLine).join("\n"),
     pins || "no pinned tracks",
     "Call emit_set with the full order (every id once), a role per track, and a one-line narrative.",

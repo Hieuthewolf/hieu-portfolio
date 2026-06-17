@@ -41,10 +41,7 @@ export interface AudioFeatures {
   vocalRegions: VocalRegion[];
 }
 
-export type SetMoment = "warmup" | "peak" | "cooldown";
-
 export interface PlanOptions {
-  setMoment: SetMoment;
   beatmatch: boolean;
   phraseBars: number; // 8 | 16 | 32
   nudgeBars: number; // local refinement, applied client-side only

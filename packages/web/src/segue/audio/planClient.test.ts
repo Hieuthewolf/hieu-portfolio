@@ -22,7 +22,7 @@ function feat(partial: Partial<AudioFeatures>): AudioFeatures {
 
 const a = feat({ sections: [{ kind: "outro", startBar: 64, endBar: 80, startSec: 120 }] });
 const b = feat({ camelot: "9A", sections: [{ kind: "intro", startBar: 0, endBar: 16, startSec: 0 }] });
-const opts = { setMoment: "peak", beatmatch: true, phraseBars: 16, nudgeBars: 0 } as const;
+const opts = { beatmatch: true, phraseBars: 16, nudgeBars: 0 } as const;
 const strat = heuristicStrategy(a, b, opts);
 
 describe("resolvePlan", () => {

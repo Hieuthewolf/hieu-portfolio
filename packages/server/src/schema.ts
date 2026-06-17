@@ -63,7 +63,6 @@ const typeDefs = /* GraphQL */ `
   }
 
   input PlanOptionsInput {
-    setMoment: String!
     beatmatch: Boolean!
     phraseBars: Int!
   }
@@ -115,7 +114,6 @@ const typeDefs = /* GraphQL */ `
   }
 
   input SetOptionsInput {
-    setMoment: String!
     beatmatch: Boolean!
     phraseBars: Int!
     introId: ID

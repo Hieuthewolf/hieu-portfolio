@@ -13,7 +13,6 @@ type Playing = "A" | "B" | "mix" | "transition" | null;
 const DEFAULT_OPTS: PlanOptions = {
   phraseBars: 16,
   beatmatch: true,
-  setMoment: "peak",
   nudgeBars: 0,
 };
 
@@ -28,6 +27,7 @@ export function useSegue() {
   const [mix, setMix] = useState<MixState | null>(null);
   const [playing, setPlaying] = useState<Playing>(null);
   const [planning, setPlanning] = useState(false);
+  const [preparing, setPreparing] = useState(false); // rendering the key-locked preview
   const [error, setError] = useState<string | null>(null);
   const [keyShift, setKeyShift] = useState(0); // semitones applied to B in rehearsal playback
   const keyShiftRef = useRef(0);
@@ -95,6 +95,7 @@ export function useSegue() {
       setError(null);
       try {
         const buffer = await engine.decode(file);
+        engine.clearKeylockCache();
         const features = analyzeBuffer(buffer);
         const track: Track = {
           id: crypto.randomUUID(),
@@ -202,27 +203,38 @@ export function useSegue() {
     setPlaying(null);
   }, [engine, emit]);
 
-  const playMix = useCallback(() => {
-    const { A, B } = tracksRef.current;
-    if (!A || !B || !planRef.current) return;
-    setPlaying("mix");
-    void engine.playMix(
-      A,
-      B,
-      planRef.current,
-      A.cursor ?? 0,
-      onUpdate,
-      onEnd,
-      keyShiftRef.current * 100,
-    );
-  }, [engine, onUpdate, onEnd]);
+  // Both coach previews render B's key-locked source first (async), so show a
+  // "preparing" state around the shared play call.
+  const playPreview = useCallback(
+    async (mode: "mix" | "transition", run: (a: Track, b: Track, p: TransitionPlan) => Promise<void>) => {
+      const { A, B } = tracksRef.current;
+      if (!A || !B || !planRef.current) return;
+      setPlaying(mode);
+      setPreparing(true);
+      try {
+        await run(A, B, planRef.current);
+      } finally {
+        setPreparing(false);
+      }
+    },
+    [],
+  );
 
-  const playTransition = useCallback(() => {
-    const { A, B } = tracksRef.current;
-    if (!A || !B || !planRef.current) return;
-    setPlaying("transition");
-    void engine.playTransition(A, B, planRef.current, onUpdate, onEnd, keyShiftRef.current * 100);
-  }, [engine, onUpdate, onEnd]);
+  const playMix = useCallback(
+    () =>
+      playPreview("mix", (A, B, p) =>
+        engine.playMix(A, B, p, A.cursor ?? 0, onUpdate, onEnd, keyShiftRef.current * 100),
+      ),
+    [playPreview, engine, onUpdate, onEnd],
+  );
+
+  const playTransition = useCallback(
+    () =>
+      playPreview("transition", (A, B, p) =>
+        engine.playTransition(A, B, p, onUpdate, onEnd, keyShiftRef.current * 100),
+      ),
+    [playPreview, engine, onUpdate, onEnd],
+  );
 
   const playTrack = useCallback(
     (slot: Slot) => {
@@ -251,6 +263,7 @@ export function useSegue() {
   const loadTrack = useCallback(
     (slot: Slot, track: Track) => {
       stop();
+      engine.clearKeylockCache();
       setPlan(null);
       setKeyShift(0);
       setError(null);
@@ -260,7 +273,7 @@ export function useSegue() {
           : { ...prev, B: { ...track, cursor: null } },
       );
     },
-    [stop],
+    [stop, engine],
   );
 
   // Audition seek: set where playback starts (free, no grid snap). If that slot
@@ -289,6 +302,7 @@ export function useSegue() {
     mix,
     playing,
     planning,
+    preparing,
     error,
     loadFile,
     find,

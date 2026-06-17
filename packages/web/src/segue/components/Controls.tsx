@@ -1,12 +1,13 @@
 import { theme } from "../theme";
 import { Select } from "./Select";
-import type { PlanOptions, SetMoment } from "../audio/types";
+import type { PlanOptions } from "../audio/types";
 
 interface ControlsProps {
   opts: PlanOptions;
   canPlan: boolean;
   hasPlan: boolean;
   planning: boolean;
+  preparing: boolean;
   isMixing: boolean;
   set: <K extends keyof PlanOptions>(k: K, v: PlanOptions[K]) => void;
   onFind: () => void;
@@ -32,6 +33,7 @@ export function Controls({
   canPlan,
   hasPlan,
   planning,
+  preparing,
   isMixing,
   set,
   onFind,
@@ -52,16 +54,6 @@ export function Controls({
       }}
     >
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 12 }}>
-        <Select
-          label="Set moment"
-          value={opts.setMoment}
-          onChange={(v) => set("setMoment", v as SetMoment)}
-          options={[
-            { value: "warmup", label: "Warm-up" },
-            { value: "peak", label: "Peak time" },
-            { value: "cooldown", label: "Cool-down" },
-          ]}
-        />
         <Select
           label="Overlap"
           value={String(opts.phraseBars)}
@@ -85,10 +77,10 @@ export function Controls({
 
       {hasPlan && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
-          <button onClick={onPlayMix} style={btn(isMixing)}>
-            ▶ play the mix
+          <button onClick={onPlayMix} disabled={preparing} style={{ ...btn(isMixing), opacity: preparing ? 0.5 : 1 }}>
+            {preparing ? "preparing…" : "▶ play the mix"}
           </button>
-          <button onClick={onPlayTransition} style={btn(false)}>
+          <button onClick={onPlayTransition} disabled={preparing} style={{ ...btn(false), opacity: preparing ? 0.5 : 1 }}>
             ▶ just the transition
           </button>
           <button onClick={onStop} style={btn(false)}>

@@ -17,7 +17,6 @@ interface NowPlaying {
 }
 
 const DEFAULT_SET_OPTS: SetOptions = {
-  setMoment: "peak",
   beatmatch: true,
   phraseBars: 16,
   nudgeBars: 0,
@@ -125,11 +124,6 @@ export function useSetBuilder() {
       outroId: o.outroId === id ? null : id,
       introId: o.introId === id ? null : o.introId,
     }));
-  }, []);
-
-  const setOption = useCallback(<K extends keyof SetOptions>(k: K, v: SetOptions[K]) => {
-    setOpts((o) => ({ ...o, [k]: v }));
-    setTimelineState(null); // a changed option restages the heuristic timeline until the next Build
   }, []);
 
   const buildSet = useCallback(async () => {
@@ -277,7 +271,6 @@ export function useSetBuilder() {
     removeTrack,
     pinIntro,
     pinOutro,
-    setOption,
     buildSet,
     reorder,
     playSet,
