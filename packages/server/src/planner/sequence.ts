@@ -12,7 +12,6 @@ import type {
   PlanOptions,
   PlanSetInput,
   SetGap,
-  SetMoment,
   SetPlan,
   SetRole,
   SetRoleEntry,
@@ -23,17 +22,10 @@ import type {
 
 const ROLES: SetRole[] = ["opener", "builder", "peak", "bridge", "closer"];
 
-/** Target energy level (0..1) at normalised set position p (0..1), per set moment. */
-export function arcTarget(moment: SetMoment, p: number): number {
-  switch (moment) {
-    case "warmup":
-      return 0.2 + 0.6 * p; // steady climb
-    case "cooldown":
-      return 0.8 - 0.6 * p; // steady descent
-    case "peak":
-    default:
-      return 0.55 + 0.45 * Math.sin(Math.PI * p); // rise to a crest mid-set, ease off
-  }
+/** Target energy level (0..1) at normalised set position p (0..1): the classic
+ * set arc — open gentle, rise to a crest mid-set, then ease off. */
+export function arcTarget(p: number): number {
+  return 0.55 + 0.45 * Math.sin(Math.PI * p);
 }
 
 function bpmDiff(a: TrackFeatures, b: TrackFeatures): number {
@@ -49,16 +41,16 @@ function gapCost(a: SetTrack, b: SetTrack): number {
 }
 
 /** How far a track's energy sits from the arc target at position p. */
-function arcCost(t: SetTrack, p: number, eMin: number, eMax: number, moment: SetMoment): number {
+function arcCost(t: SetTrack, p: number, eMin: number, eMax: number): number {
   const norm = eMax > eMin ? (t.energy.mean - eMin) / (eMax - eMin) : 0.5;
-  return Math.abs(norm - arcTarget(moment, p));
+  return Math.abs(norm - arcTarget(p));
 }
 
-function score(order: SetTrack[], moment: SetMoment, eMin: number, eMax: number): number {
+function score(order: SetTrack[], eMin: number, eMax: number): number {
   const n = order.length;
   let s = 0;
   for (let i = 0; i < n - 1; i++) s += gapCost(order[i]!, order[i + 1]!);
-  for (let i = 0; i < n; i++) s += arcCost(order[i]!, n > 1 ? i / (n - 1) : 0, eMin, eMax, moment);
+  for (let i = 0; i < n; i++) s += arcCost(order[i]!, n > 1 ? i / (n - 1) : 0, eMin, eMax);
   return s;
 }
 
@@ -75,7 +67,6 @@ function reverse(order: SetTrack[], i: number, j: number): void {
 /** 2-opt local search on the global score; never moves the locked endpoints. */
 function twoOpt(
   order: SetTrack[],
-  moment: SetMoment,
   eMin: number,
   eMax: number,
   lockFirst: boolean,
@@ -90,9 +81,9 @@ function twoOpt(
     improved = false;
     for (let i = lo; i < hi; i++) {
       for (let j = i + 1; j <= hi; j++) {
-        const before = score(order, moment, eMin, eMax);
+        const before = score(order, eMin, eMax);
         reverse(order, i, j);
-        if (score(order, moment, eMin, eMax) < before - 1e-9) improved = true;
+        if (score(order, eMin, eMax) < before - 1e-9) improved = true;
         else reverse(order, i, j); // revert
       }
     }
@@ -106,7 +97,6 @@ function twoOpt(
  */
 export function sequence(
   tracks: SetTrack[],
-  moment: SetMoment,
   introId?: string | null,
   outroId?: string | null,
 ): string[] {
@@ -133,7 +123,7 @@ export function sequence(
     let bestCost = Infinity;
     for (let i = 0; i < remaining.length; i++) {
       const cand = remaining[i]!;
-      const c = arcCost(cand, p, eMin, eMax, moment) + (prev ? 0.5 * gapCost(prev, cand) : 0);
+      const c = arcCost(cand, p, eMin, eMax) + (prev ? 0.5 * gapCost(prev, cand) : 0);
       if (c < bestCost) {
         bestCost = c;
         best = i;
@@ -143,7 +133,7 @@ export function sequence(
   }
   if (outro) order.push(outro);
 
-  twoOpt(order, moment, eMin, eMax, !!intro, !!outro);
+  twoOpt(order, eMin, eMax, !!intro, !!outro);
   return order.map((t) => t.id);
 }
 
@@ -188,24 +178,18 @@ function rolesByArc(order: string[], tracks: SetTrack[]): SetRoleEntry[] {
   });
 }
 
-function templateNarrative(n: number, moment: SetMoment): string {
-  const arc =
-    moment === "warmup"
-      ? "easing the room up"
-      : moment === "cooldown"
-        ? "bringing it back down"
-        : "building to a peak, then easing off";
-  return `A ${n}-track set ${arc}: open gentle, ride the energy through the middle, and land soft.`;
+function templateNarrative(n: number): string {
+  return `A ${n}-track set building to a peak, then easing off: open gentle, ride the energy through the middle, and land soft.`;
 }
 
 /** The offline set strategy: used when there's no API key, or the LLM call fails. */
 export function deterministicSetStrategy(input: PlanSetInput): SetStrategy {
   const { tracks, options } = input;
-  const order = sequence(tracks, options.setMoment, options.introId, options.outroId);
+  const order = sequence(tracks, options.introId, options.outroId);
   return {
     order,
     roles: rolesByArc(order, tracks),
-    narrative: templateNarrative(tracks.length, options.setMoment),
+    narrative: templateNarrative(tracks.length),
   };
 }
 
@@ -253,7 +237,7 @@ export function repairSet(
   const ids = tracks.map((t) => t.id);
   let order = isPermutation(strat.order, ids)
     ? strat.order
-    : sequence(tracks, options.setMoment, options.introId, options.outroId);
+    : sequence(tracks, options.introId, options.outroId);
   order = applyPins(order, options.introId, options.outroId);
 
   const byId = new Map(tracks.map((t) => [t.id, t]));
@@ -265,7 +249,7 @@ export function repairSet(
   return {
     order,
     roles: fillRoles(order, tracks, strat.roles),
-    narrative: strat.narrative || templateNarrative(tracks.length, options.setMoment),
+    narrative: strat.narrative || templateNarrative(tracks.length),
     gaps,
     source,
   };

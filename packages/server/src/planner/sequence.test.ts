@@ -20,7 +20,6 @@ const tracks: SetTrack[] = [
 ];
 
 const options = (over: Partial<SetOptions> = {}): SetOptions => ({
-  setMoment: "peak",
   beatmatch: true,
   phraseBars: 16,
   ...over,
@@ -28,23 +27,21 @@ const options = (over: Partial<SetOptions> = {}): SetOptions => ({
 
 describe("sequence", () => {
   it("returns every track exactly once (a permutation)", () => {
-    const order = sequence(tracks, "peak");
+    const order = sequence(tracks);
     expect([...order].sort()).toEqual(["t1", "t2", "t3", "t4", "t5"]);
   });
 
   it("honours a pinned intro and outro at the ends", () => {
-    const order = sequence(tracks, "peak", "t5", "t3");
+    const order = sequence(tracks, "t5", "t3");
     expect(order[0]).toBe("t5");
     expect(order[order.length - 1]).toBe("t3");
     expect([...order].sort()).toEqual(["t1", "t2", "t3", "t4", "t5"]);
   });
 
-  it("ends lower-energy than it starts for a cooldown", () => {
-    const order = sequence(tracks, "cooldown");
-    const byId = new Map(tracks.map((t) => [t.id, t]));
-    const first = byId.get(order[0]!)!.energy.mean;
-    const last = byId.get(order[order.length - 1]!)!.energy.mean;
-    expect(last).toBeLessThan(first);
+  it("keeps the highest-energy track off the ends (a peak arc)", () => {
+    const order = sequence(tracks);
+    expect(order[0]).not.toBe("t3"); // t3 is the loudest (0.9)
+    expect(order[order.length - 1]).not.toBe("t3");
   });
 });
 

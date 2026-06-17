@@ -2,7 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import type { PlanInput, TrackFeatures } from "./types.js";
 
 export const SYSTEM_PROMPT = `You're a warm, encouraging DJ mentor showing someone who's still learning how to mix track A (playing) into \
-track B (incoming) during the {setMoment} of their set. You get each track's tempo, key (Camelot), duration, \
+track B (incoming). You get each track's tempo, key (Camelot), duration, \
 and labelled sections (intro/build/drop/breakdown/outro with a timestamp and bar number each).
 
 How to mix well:
@@ -15,8 +15,9 @@ ending section. Only pick a mid-song drop when it's musically stronger than wait
 - Watch the vocals. You also get each track's vocal stretches (start/end seconds). Two lead vocals at once \
 clash, so prefer bringing B in under an instrumental stretch of A (and on a part of B that isn't singing yet). \
 If the blend can't avoid both singing, ease A's MID (the vocal band) down as B's vocal enters — add that as a step.
-- Favour the most forgiving option that fits the moment: a beatmatched bass-swap blend in compatible keys, or a \
-clean cut on a phrase boundary. Keep fragile moves (double drops) rare. At peak time, keep the energy up.
+- Favour the most forgiving option: a beatmatched bass-swap blend in compatible keys, or a \
+clean cut on a phrase boundary. Keep fragile moves (double drops) rare. Read the tracks' own energy and sections to \
+judge how hard to go — keep a high-energy pair driving, let a melodic pair breathe.
 
 Worked examples (illustrative — adapt to the real tracks; these lean melodic-bass and big-room):
 - Melodic bass, relative key (real — Illenium tracks): A = Good Things Fall Apart 144 BPM 10B (D maj), emotional \
@@ -179,8 +180,7 @@ export function renderUser(input: PlanInput): string {
   return [
     line("Track A (playing)", a),
     line("Track B (incoming)", b),
-    `Set moment: ${options.setMoment}. ` +
-      `Beatmatch: ${options.beatmatch}. Preferred overlap: ${options.phraseBars} bars.`,
+    `Beatmatch: ${options.beatmatch}. Preferred overlap: ${options.phraseBars} bars.`,
     "Plan the transition. Call emit_plan.",
   ].join("\n\n");
 }

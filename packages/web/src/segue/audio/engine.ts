@@ -1,4 +1,5 @@
 import { clamp } from "./dsp";
+import { timeStretch } from "./keylock";
 import type { Track, TransitionPlan } from "./types";
 
 export interface MixState {
@@ -85,6 +86,43 @@ export class AudioEngine {
   private ctx: AudioContext | null = null;
   private raf = 0;
   private sources: AudioBufferSourceNode[] = [];
+  // Pitch-locked (key-lock) renders of B's mix-in slice, keyed by the params that
+  // define them, so re-pressing play in the coach is instant. Bounded FIFO; cleared
+  // on track load.
+  private keylockCache = new Map<string, AudioBuffer>();
+
+  clearKeylockCache(): void {
+    this.keylockCache.clear();
+  }
+
+  /**
+   * Resolve B's playback source. Beatmatch/key-shift normally resample B, which
+   * drags its pitch along with the tempo. When either applies, render a
+   * pitch-preserving slice instead (key-lock) and play it at rate 1; falls back to
+   * resampling if the render fails, so playback never breaks.
+   */
+  private async prepareB(b: Track, warp: number, semis: number, mixStartB: number) {
+    if (warp === 1 && semis === 0) {
+      return { buffer: b.buffer, offset: mixStartB, rate: 1, detune: 0, keyLocked: false };
+    }
+    try {
+      const key = `${b.id}|${warp.toFixed(4)}|${semis}|${mixStartB.toFixed(2)}`;
+      let buffer = this.keylockCache.get(key);
+      if (!buffer) {
+        buffer = await timeStretch(this.context(), b.buffer, {
+          tempo: warp,
+          pitchSemitones: semis,
+          startSec: mixStartB,
+          endSec: b.buffer.duration,
+        });
+        if (this.keylockCache.size >= 8) this.keylockCache.delete(this.keylockCache.keys().next().value!);
+        this.keylockCache.set(key, buffer);
+      }
+      return { buffer, offset: 0, rate: 1, detune: 0, keyLocked: true };
+    } catch {
+      return { buffer: b.buffer, offset: mixStartB, rate: warp, detune: semis * 100, keyLocked: false };
+    }
+  }
 
   context(): AudioContext {
     if (!this.ctx) {
@@ -187,6 +225,11 @@ export class AudioEngine {
 
     const start = Math.min(Math.max(0, aStart || 0), plan.mixStartA);
     const warp = plan.warp || 1;
+
+    // Render B's source up front (key-lock — see prepareB) so the render doesn't
+    // eat into the lead time computed from t0 below.
+    const bSrc = await this.prepareB(b, warp, detuneCents / 100, plan.mixStartB);
+
     const t0 = c.currentTime + 0.1;
     const transStart = t0 + (plan.mixStartA - start);
     const transEnd = transStart + plan.transLen;
@@ -195,10 +238,9 @@ export class AudioEngine {
     const srcA = c.createBufferSource();
     srcA.buffer = a.buffer;
     const srcB = c.createBufferSource();
-    srcB.buffer = b.buffer;
-    if (warp !== 1) srcB.playbackRate.value = warp;
-    // Key-shift the incoming track (detune resamples, so it nudges tempo too).
-    if (detuneCents) srcB.detune.value = detuneCents;
+    srcB.buffer = bSrc.buffer;
+    if (bSrc.rate !== 1) srcB.playbackRate.value = bSrc.rate;
+    if (bSrc.detune) srcB.detune.value = bSrc.detune;
 
     const gA = c.createGain();
     const gB = c.createGain();
@@ -240,9 +282,13 @@ export class AudioEngine {
     }
 
     srcA.start(t0, start);
-    srcB.start(transStart, plan.mixStartB);
+    srcB.start(transStart, bSrc.offset);
     srcA.stop(transEnd + 0.2);
-    const bRealEnd = transStart + (b.buffer.duration - plan.mixStartB) / warp;
+    // A key-locked slice plays at rate 1, so its real-time length is the buffer
+    // itself; otherwise the resampled tail is the remaining audio over `warp`.
+    const bRealEnd = bSrc.keyLocked
+      ? transStart + bSrc.buffer.duration
+      : transStart + (b.buffer.duration - plan.mixStartB) / warp;
     const end = clip ? transEnd + 4 : bRealEnd;
     if (clip) srcB.stop(end);
     this.sources = [srcA, srcB];

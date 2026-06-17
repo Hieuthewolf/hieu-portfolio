@@ -1,21 +1,20 @@
 import { useEffect, useRef } from "react";
 import { theme } from "../theme";
 import { arcTarget } from "../audio/planClient";
-import type { SetMoment, Track } from "../audio/types";
+import type { Track } from "../audio/types";
 
 interface EnergyArcProps {
   tracks: Track[]; // in set order
-  moment: SetMoment;
 }
 
 const HEIGHT = 120;
 
 /**
  * Static chart of the set's energy journey: each track's energy plotted in order
- * against the target arc for the moment. Reuses the Waveform canvas pattern
- * (dpr sizing, single redraw) — no per-frame animation, so it's simpler.
+ * against the target energy arc. Reuses the Waveform canvas pattern (dpr sizing,
+ * single redraw) — no per-frame animation, so it's simpler.
  */
-export function EnergyArc({ tracks, moment }: EnergyArcProps) {
+export function EnergyArc({ tracks }: EnergyArcProps) {
   const ref = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -47,7 +46,7 @@ export function EnergyArc({ tracks, moment }: EnergyArcProps) {
     for (let i = 0; i <= 60; i++) {
       const p = i / 60;
       const x = padX + p * plotW;
-      const y = yOf(arcTarget(moment, p));
+      const y = yOf(arcTarget(p));
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     }
@@ -90,7 +89,7 @@ export function EnergyArc({ tracks, moment }: EnergyArcProps) {
       ctx.textAlign = "center";
       ctx.fillText(String(i + 1), x, h - 4);
     });
-  }, [tracks, moment]);
+  }, [tracks]);
 
   return (
     <div>
@@ -104,7 +103,7 @@ export function EnergyArc({ tracks, moment }: EnergyArcProps) {
           marginBottom: 6,
         }}
       >
-        Energy arc · {moment}
+        Energy arc
       </div>
       <canvas
         ref={ref}

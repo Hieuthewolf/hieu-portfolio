@@ -16,7 +16,6 @@ import type {
   PlaybookStep,
   Section,
   SetGap,
-  SetMoment,
   SetOptions,
   SetPlan,
   SetRole,
@@ -76,7 +75,6 @@ export async function requestPlan(
     a: toFeaturesInput(a),
     b: toFeaturesInput(b),
     options: {
-      setMoment: opts.setMoment,
       beatmatch: opts.beatmatch,
       phraseBars: opts.phraseBars,
     },
@@ -328,7 +326,6 @@ export async function requestSetPlan(tracks: Track[], opts: SetOptions): Promise
   const input = {
     tracks: tracks.map(toSetTrackInput),
     options: {
-      setMoment: opts.setMoment,
       beatmatch: opts.beatmatch,
       phraseBars: opts.phraseBars,
       introId: opts.introId ?? null,
@@ -409,10 +406,9 @@ export async function requestSetTimeline(
   );
 }
 
-export function arcTarget(moment: SetMoment, p: number): number {
-  if (moment === "warmup") return 0.2 + 0.6 * p;
-  if (moment === "cooldown") return 0.8 - 0.6 * p;
-  return 0.55 + 0.45 * Math.sin(Math.PI * p); // peak
+/** The set's target energy arc: open gentle, rise to a crest mid-set, then ease off. */
+export function arcTarget(p: number): number {
+  return 0.55 + 0.45 * Math.sin(Math.PI * p);
 }
 
 function rolesByArc(order: Track[]): SetRoleEntry[] {
@@ -459,9 +455,7 @@ export function localSetPlan(tracks: Track[], opts: SetOptions): SetPlan {
   const interiorSlots: number[] = [];
   for (let i = intro ? 1 : 0; i < n - (outro ? 1 : 0); i++) interiorSlots.push(i);
   const slotsByTarget = [...interiorSlots].sort(
-    (i, j) =>
-      arcTarget(opts.setMoment, i / Math.max(1, n - 1)) -
-      arcTarget(opts.setMoment, j / Math.max(1, n - 1)),
+    (i, j) => arcTarget(i / Math.max(1, n - 1)) - arcTarget(j / Math.max(1, n - 1)),
   );
 
   const order: Track[] = new Array(n);
@@ -475,7 +469,7 @@ export function localSetPlan(tracks: Track[], opts: SetOptions): SetPlan {
   return {
     order: filled.map((t) => t.id),
     roles: rolesByArc(filled),
-    narrative: `A ${n}-track set arranged offline along the ${opts.setMoment} energy arc.`,
+    narrative: `A ${n}-track set arranged offline along its energy arc.`,
     gaps: gapsFor(filled, opts),
     source: "heuristic",
   };

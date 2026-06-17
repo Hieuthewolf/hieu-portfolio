@@ -3,9 +3,8 @@ import { theme } from "../theme";
 import { useSetBuilder } from "../hooks/useSetBuilder";
 import { EnergyArc } from "./EnergyArc";
 import { FLX4Map } from "./FLX4Map";
-import { Select } from "./Select";
 import { TrackList } from "./TrackList";
-import type { SetMoment, Track } from "../audio/types";
+import type { Track } from "../audio/types";
 
 interface SetBuilderProps {
   onRehearse: (from: Track, to: Track) => void;
@@ -33,7 +32,6 @@ export function SetBuilder({ onRehearse }: SetBuilderProps) {
     removeTrack,
     pinIntro,
     pinOutro,
-    setOption,
     buildSet,
     reorder,
     playing,
@@ -74,25 +72,6 @@ export function SetBuilder({ onRehearse }: SetBuilderProps) {
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
-          gap: 12,
-        }}
-      >
-        <Select
-          label="Set moment"
-          value={opts.setMoment}
-          onChange={(v) => setOption("setMoment", v as SetMoment)}
-          options={[
-            { value: "warmup", label: "Warm-up" },
-            { value: "peak", label: "Peak time" },
-            { value: "cooldown", label: "Cool-down" },
-          ]}
-        />
-      </div>
-
       <input
         ref={inputRef}
         type="file"
@@ -183,7 +162,7 @@ export function SetBuilder({ onRehearse }: SetBuilderProps) {
         </div>
       )}
 
-      {setPlan && ordered.length > 0 && <EnergyArc tracks={ordered} moment={opts.setMoment} />}
+      {setPlan && ordered.length > 0 && <EnergyArc tracks={ordered} />}
 
       {playing && transitionPlan && (
         <FLX4Map

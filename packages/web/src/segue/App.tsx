@@ -22,6 +22,7 @@ export function App() {
     mix,
     playing,
     planning,
+    preparing,
     error,
     loadFile,
     find,
@@ -229,6 +230,7 @@ export function App() {
                 canPlan={!!A && !!B}
                 hasPlan={!!plan}
                 planning={planning}
+                preparing={preparing}
                 isMixing={playing === "mix" || playing === "transition"}
                 set={set}
                 onFind={find}
