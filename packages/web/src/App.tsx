@@ -2,30 +2,35 @@ import { Suspense } from "react";
 import { RelayEnvironmentProvider } from "react-relay";
 import { RelayEnvironment } from "./RelayEnvironment";
 import { Portfolio } from "./components/Portfolio";
+import { Library } from "./components/Library";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { App as SegueApp } from "./segue/App";
 import { theme } from "./theme";
 
+const loading = (
+  <div style={{ padding: 48, fontFamily: theme.mono, color: theme.muted }}>Loading…</div>
+);
+
 export function App() {
-  // Two surfaces, one SPA: a lightweight path check, no router dependency.
-  // "/segue" → the AI DJ coach; everything else → the Relay portfolio.
-  if (typeof window !== "undefined" && window.location.pathname.startsWith("/segue")) {
-    return <SegueApp />;
-  }
+  // Three surfaces, one SPA: a lightweight path check, no router dependency.
+  // The Relay provider wraps all of them so authenticated queries/mutations work
+  // on every surface (Segue's "save to library", the /library page).
+  const path = typeof window !== "undefined" ? window.location.pathname : "/";
+  const surface = path.startsWith("/segue") ? (
+    <SegueApp />
+  ) : path.startsWith("/library") ? (
+    <Suspense fallback={loading}>
+      <Library />
+    </Suspense>
+  ) : (
+    <Suspense fallback={loading}>
+      <Portfolio />
+    </Suspense>
+  );
 
   return (
     <RelayEnvironmentProvider environment={RelayEnvironment}>
-      <ErrorBoundary>
-        <Suspense
-          fallback={
-            <div style={{ padding: 48, fontFamily: theme.mono, color: theme.muted }}>
-              Loading…
-            </div>
-          }
-        >
-          <Portfolio />
-        </Suspense>
-      </ErrorBoundary>
+      <ErrorBoundary>{surface}</ErrorBoundary>
     </RelayEnvironmentProvider>
   );
 }

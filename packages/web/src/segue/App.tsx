@@ -9,6 +9,7 @@ import { DeckEQ } from "./components/DeckEQ";
 import { Waveform } from "./components/Waveform";
 import { GlossaryPanel } from "./components/GlossaryPanel";
 import { SetBuilder } from "./components/SetBuilder";
+import { AccountMenu } from "../components/AccountMenu";
 import type { Track } from "./audio/types";
 
 type Mode = "coach" | "set";
@@ -76,19 +77,27 @@ export function App() {
     <div style={{ minHeight: "100vh", background: theme.bg, color: theme.ink }}>
       <div style={{ maxWidth: 1080, margin: "0 auto", padding: "48px 24px 80px" }}>
         <header style={{ marginBottom: 36 }}>
-          <a
-            href="/"
+          <div
             style={{
-              fontFamily: theme.mono,
-              fontSize: 12,
-              color: theme.muted,
-              textDecoration: "none",
-              display: "inline-block",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
               marginBottom: 18,
             }}
           >
-            ← Hieu Nguyen
-          </a>
+            <a
+              href="/"
+              style={{
+                fontFamily: theme.mono,
+                fontSize: 12,
+                color: theme.muted,
+                textDecoration: "none",
+              }}
+            >
+              ← Hieu Nguyen
+            </a>
+            <AccountMenu />
+          </div>
           <div
             style={{
               fontFamily: theme.mono,
