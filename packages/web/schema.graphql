@@ -7,9 +7,11 @@ input EnergySummaryInput {
 scalar JSON
 
 type Mutation {
+  deleteSet(id: ID!): ID!
   deleteTrack(id: ID!): ID!
   planSet(input: PlanSetInput!): SetPlan!
   planTransition(input: PlanTransitionInput!): TransitionPlan!
+  saveSet(input: SaveSetInput!): SavedSet!
   saveTrack(input: SaveTrackInput!): SavedTrack!
 }
 
@@ -60,9 +62,16 @@ type Project {
 
 type Query {
   me: User
+  mySets: [SavedSet!]!
   myTracks: [SavedTrack!]!
   profile: Profile!
   projects: [Project!]!
+}
+
+input SaveSetInput {
+  name: String!
+  narrative: String
+  plan: JSON
 }
 
 input SaveTrackInput {
@@ -73,6 +82,14 @@ input SaveTrackInput {
   durationSec: Float
   musicalKey: String
   title: String!
+}
+
+type SavedSet {
+  createdAt: String!
+  id: ID!
+  name: String!
+  narrative: String
+  plan: JSON
 }
 
 type SavedTrack {

@@ -5,6 +5,7 @@ import { AccountMenu } from "./AccountMenu";
 import { AuthForm } from "./AuthForm";
 import type { LibraryQuery as LibraryQueryType } from "../__generated__/LibraryQuery.graphql";
 import type { LibraryDeleteTrackMutation } from "../__generated__/LibraryDeleteTrackMutation.graphql";
+import type { LibraryDeleteSetMutation } from "../__generated__/LibraryDeleteSetMutation.graphql";
 
 const LibraryQuery = graphql`
   query LibraryQuery {
@@ -24,6 +25,13 @@ const LibraryQuery = graphql`
       durationSec
       createdAt
     }
+    mySets {
+      id
+      name
+      narrative
+      plan
+      createdAt
+    }
   }
 `;
 
@@ -32,6 +40,17 @@ const DeleteTrackMutation = graphql`
     deleteTrack(id: $id)
   }
 `;
+
+const DeleteSetMutation = graphql`
+  mutation LibraryDeleteSetMutation($id: ID!) {
+    deleteSet(id: $id)
+  }
+`;
+
+function setTrackCount(plan: unknown): number | null {
+  const t = (plan as { tracks?: unknown[] } | null)?.tracks;
+  return Array.isArray(t) ? t.length : null;
+}
 
 function mmss(sec: number | null | undefined): string {
   if (sec == null) return "—";
@@ -48,9 +67,11 @@ export function Library() {
     { fetchKey, fetchPolicy: "store-and-network" },
   );
   const [commitDelete, deleting] = useMutation<LibraryDeleteTrackMutation>(DeleteTrackMutation);
+  const [commitDeleteSet, deletingSet] = useMutation<LibraryDeleteSetMutation>(DeleteSetMutation);
 
-  const onDelete = (id: string) =>
-    commitDelete({ variables: { id }, onCompleted: () => setFetchKey((k) => k + 1) });
+  const refresh = () => setFetchKey((k) => k + 1);
+  const onDelete = (id: string) => commitDelete({ variables: { id }, onCompleted: refresh });
+  const onDeleteSet = (id: string) => commitDeleteSet({ variables: { id }, onCompleted: refresh });
 
   return (
     <div style={{ minHeight: "100vh", background: theme.bg, color: theme.ink }}>
@@ -120,6 +141,73 @@ export function Library() {
                 </button>
               </div>
             ))}
+          </div>
+        )}
+
+        {data.me && (
+          <div style={{ marginTop: 36 }}>
+            <div
+              style={{
+                fontFamily: theme.mono,
+                fontSize: 11,
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                color: theme.muted,
+                marginBottom: 12,
+              }}
+            >
+              Saved sets
+            </div>
+            {data.mySets.length === 0 ? (
+              <p style={{ fontFamily: theme.sans, fontSize: 15, color: theme.muted }}>
+                No saved sets yet. Build a set in the Set Builder and hit “save set”.
+              </p>
+            ) : (
+              <div style={{ display: "grid", gap: 8 }}>
+                {data.mySets.map((s) => (
+                  <div
+                    key={s.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 16,
+                      background: theme.surface,
+                      border: `1px solid ${theme.line}`,
+                      borderRadius: 12,
+                      padding: "12px 16px",
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontFamily: theme.sans, fontSize: 15, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {s.name}
+                      </div>
+                      <div style={{ fontFamily: theme.mono, fontSize: 11.5, color: theme.muted, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {setTrackCount(s.plan) != null ? `${setTrackCount(s.plan)} tracks` : ""}
+                        {s.narrative ? ` · ${s.narrative}` : ""}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => onDeleteSet(s.id)}
+                      disabled={deletingSet}
+                      style={{
+                        fontFamily: theme.mono,
+                        fontSize: 11,
+                        border: `1px solid ${theme.line}`,
+                        background: "transparent",
+                        color: theme.ink,
+                        borderRadius: 999,
+                        padding: "5px 12px",
+                        cursor: "pointer",
+                        opacity: deletingSet ? 0.5 : 1,
+                      }}
+                    >
+                      remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

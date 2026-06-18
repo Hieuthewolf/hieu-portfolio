@@ -8,6 +8,13 @@
       "when": 1781715361828,
       "tag": "0000_moaning_chat",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1781808970203,
+      "tag": "0001_friendly_maestro",
+      "breakpoints": true
     }
   ]
 }

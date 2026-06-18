@@ -3,6 +3,7 @@ import { theme } from "../theme";
 import { useSetBuilder } from "../hooks/useSetBuilder";
 import { EnergyArc } from "./EnergyArc";
 import { FLX4Map } from "./FLX4Map";
+import { SaveSetButton } from "./SaveSetButton";
 import { TrackList } from "./TrackList";
 import type { Track } from "../audio/types";
 
@@ -149,6 +150,7 @@ export function SetBuilder({ onRehearse }: SetBuilderProps) {
                 </button>
               </>
             ))}
+          {setPlan && ordered.length > 0 && <SaveSetButton setPlan={setPlan} ordered={ordered} />}
           <span style={{ fontFamily: theme.mono, fontSize: 11, color: theme.muted }}>
             {tracks.length} track{tracks.length === 1 ? "" : "s"}
             {tracks.length < 2 ? " · add at least 2" : ""}

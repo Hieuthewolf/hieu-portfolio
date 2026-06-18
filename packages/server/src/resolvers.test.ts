@@ -21,4 +21,17 @@ describe("track resolver auth guards", () => {
       /Unauthorized/,
     );
   });
+
+  it("mySets returns an empty list for anonymous users", async () => {
+    expect(await resolvers.Query.mySets({}, {}, anon)).toEqual([]);
+  });
+
+  it("saveSet / deleteSet reject anonymous users", async () => {
+    await expect(
+      resolvers.Mutation.saveSet({}, { input: { name: "x" } }, anon),
+    ).rejects.toThrow(/Unauthorized/);
+    await expect(resolvers.Mutation.deleteSet({}, { id: "x" }, anon)).rejects.toThrow(
+      /Unauthorized/,
+    );
+  });
 });

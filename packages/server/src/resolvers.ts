@@ -5,7 +5,7 @@ import { plan } from "./planner/index.js";
 import { planSet } from "./planner/setIndex.js";
 import type { PlanInput, PlanSetInput } from "./planner/types.js";
 import { db } from "./db/index.js";
-import { tracks } from "./db/schema.js";
+import { sets, tracks } from "./db/schema.js";
 import type { GraphQLContext } from "./context.js";
 
 // Pass-through JSON scalar for the stored track analysis blob.
@@ -30,10 +30,20 @@ interface SaveTrackInput {
   analysis?: unknown;
 }
 
+interface SaveSetInput {
+  name: string;
+  narrative?: string | null;
+  plan?: unknown;
+}
+
 export const resolvers = {
   JSON: JSONScalar,
   SavedTrack: {
     // Drizzle returns a Date for timestamp columns; expose a stable ISO string.
+    createdAt: (row: { createdAt: Date | string }) =>
+      row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
+  },
+  SavedSet: {
     createdAt: (row: { createdAt: Date | string }) =>
       row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
   },
@@ -46,6 +56,10 @@ export const resolvers = {
       // prompt instead of surfacing an error. Writes still require auth.
       if (!ctx.user) return [];
       return db.select().from(tracks).where(eq(tracks.userId, ctx.user.id)).orderBy(desc(tracks.createdAt));
+    },
+    mySets: (_p: unknown, _a: unknown, ctx: GraphQLContext) => {
+      if (!ctx.user) return [];
+      return db.select().from(sets).where(eq(sets.userId, ctx.user.id)).orderBy(desc(sets.createdAt));
     },
   },
   Mutation: {
@@ -71,6 +85,26 @@ export const resolvers = {
     deleteTrack: async (_p: unknown, args: { id: string }, ctx: GraphQLContext) => {
       const user = requireUser(ctx);
       await db.delete(tracks).where(and(eq(tracks.id, args.id), eq(tracks.userId, user.id)));
+      return args.id;
+    },
+    saveSet: async (_p: unknown, args: { input: SaveSetInput }, ctx: GraphQLContext) => {
+      const user = requireUser(ctx);
+      const input = args.input;
+      if (!input.name.trim() || input.name.length > 300) {
+        throw new GraphQLError("Invalid name", { extensions: { code: "BAD_INPUT" } });
+      }
+      if (input.plan !== undefined && JSON.stringify(input.plan).length > 200_000) {
+        throw new GraphQLError("Plan payload too large", { extensions: { code: "BAD_INPUT" } });
+      }
+      const [row] = await db
+        .insert(sets)
+        .values({ ...input, userId: user.id })
+        .returning();
+      return row;
+    },
+    deleteSet: async (_p: unknown, args: { id: string }, ctx: GraphQLContext) => {
+      const user = requireUser(ctx);
+      await db.delete(sets).where(and(eq(sets.id, args.id), eq(sets.userId, user.id)));
       return args.id;
     },
   },
