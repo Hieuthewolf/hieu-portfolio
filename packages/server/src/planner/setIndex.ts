@@ -3,13 +3,14 @@
  * `plan()` — try the LLM for the ordering judgment, always fall back to the
  * deterministic sequencer. One LLM call per set, never one per transition.
  */
-import Anthropic from "@anthropic-ai/sdk";
-import { isValidSetStrategy, renderSetUser, SET_SYSTEM_PROMPT, SET_TOOL } from "./setPrompt.js";
+import { generateObject } from "ai";
+import { google } from "@ai-sdk/google";
+import { isValidSetStrategy, renderSetUser, SET_SYSTEM_PROMPT, setSchema } from "./setPrompt.js";
 import { deterministicSetStrategy, repairSet } from "./sequence.js";
 import type { PlanSetInput, SetPlan, SetStrategy } from "./types.js";
 
-const MODEL = "claude-sonnet-4-6";
-const TIMEOUT_MS = 8000;
+const MODEL = "gemini-2.5-flash"; // free tier via Google AI Studio
+const TIMEOUT_MS = 12000;
 
 async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   return Promise.race([
@@ -19,33 +20,27 @@ async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
 }
 
 async function llmSetStrategy(input: PlanSetInput): Promise<SetStrategy> {
-  const client = new Anthropic(); // reads ANTHROPIC_API_KEY
-  const resp = await client.messages.create({
-    model: MODEL,
-    max_tokens: 1024,
+  const { object } = await generateObject({
+    model: google(MODEL),
     system: SET_SYSTEM_PROMPT,
-    tools: [SET_TOOL],
-    tool_choice: { type: "tool", name: "emit_set" },
-    messages: [{ role: "user", content: renderSetUser(input) }],
+    prompt: renderSetUser(input),
+    schema: setSchema,
   });
-
-  const block = resp.content.find((c) => c.type === "tool_use");
-  if (!block || block.type !== "tool_use") throw new Error("no tool_use block");
-
-  const s = block.input as Partial<SetStrategy>;
+  // The AI SDK validates shape; we still enforce that the order is a real
+  // permutation of the given ids (repairSet falls back to the sequencer if not).
   if (
     !isValidSetStrategy(
-      s,
+      object,
       input.tracks.map((t) => t.id),
     )
   )
     throw new Error("invalid set strategy from model");
-  return s;
+  return object;
 }
 
 /** Public entry: try the LLM, fall back to the heuristic. Always returns a set plan. */
 export async function planSet(input: PlanSetInput): Promise<SetPlan> {
-  if (process.env.ANTHROPIC_API_KEY) {
+  if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
     try {
       const strategy = await withTimeout(llmSetStrategy(input), TIMEOUT_MS);
       return repairSet(input, strategy, "llm");

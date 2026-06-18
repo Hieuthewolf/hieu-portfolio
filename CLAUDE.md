@@ -86,10 +86,11 @@ One Vercel project, importing this repo at the root.
   *auth flow itself* can't fully verify on previews — Better Auth cookies/`BETTER_AUTH_URL` are
   origin-specific and preview URLs are dynamic; verify auth locally or on prod.)
 - Env vars on the project (server-side only unless `VITE_`-prefixed):
-  `VITE_GRAPHQL_ENDPOINT = /api/graphql`; `ANTHROPIC_API_KEY` (without it the planner falls back
-  to a heuristic — never breaks); `DATABASE_URL` (Neon, **needed at build for `db:migrate` and
-  at runtime**); `BETTER_AUTH_SECRET` (**required** — signs sessions; prod refuses the default);
-  `BETTER_AUTH_URL` (the app origin, e.g. `https://hieu-segue.vercel.app`); `AUTH_ALLOWED_EMAILS`
+  `VITE_GRAPHQL_ENDPOINT = /api/graphql`; `GOOGLE_GENERATIVE_AI_API_KEY` (Gemini, free Google AI
+  Studio tier — without it the planner falls back to a heuristic, never breaks); `DATABASE_URL`
+  (Neon, **needed at build for `db:migrate` and at runtime**); `BETTER_AUTH_SECRET` (**required**
+  — signs sessions; prod refuses the default); `BETTER_AUTH_URL` (the app origin, e.g.
+  `https://hieu-portfolio-seven.vercel.app`); `AUTH_ALLOWED_EMAILS`
   (comma-separated allowlist that locks email/password sign-up — set it so the public deploy
   isn't open registration). Secrets never get a `VITE_` prefix (that would ship them to the browser).
 - Every push to `main` auto-deploys.
@@ -97,9 +98,10 @@ One Vercel project, importing this repo at the root.
 ## Planner design
 
 The browser does all audio DSP + section detection and sends only numbers/labels. The LLM
-(Claude, tool use) picks a *strategy* (technique, sections, phrase length, coaching). Then
-deterministic code resolves exact beat-aligned timestamps and computes harmonic compatibility
-— never trusting those to the model. The API key lives only on the server.
+(Gemini via the AI SDK `generateObject`, structured output) picks a *strategy* (technique,
+sections, phrase length, coaching). Then deterministic code resolves exact beat-aligned
+timestamps and computes harmonic compatibility — never trusting those to the model. The API
+key lives only on the server.
 
 ## Single source of truth
 

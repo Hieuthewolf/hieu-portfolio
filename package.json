@@ -14,12 +14,14 @@
     "vercel-build": "pnpm --filter @portfolio/server build && if [ -n \"$DATABASE_URL\" ]; then pnpm --filter @portfolio/server db:migrate; else echo 'No DATABASE_URL — skipping migrations'; fi && pnpm --filter @portfolio/server print-schema && pnpm --filter @portfolio/web run relay && pnpm --filter @portfolio/web build"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.30.1",
+    "@ai-sdk/google": "^3.0.83",
     "@neondatabase/serverless": "^1.1.0",
+    "ai": "^6.0.208",
     "better-auth": "^1.6.19",
     "drizzle-orm": "^0.45.2",
     "graphql": "^16.9.0",
-    "graphql-yoga": "^5.6.3"
+    "graphql-yoga": "^5.6.3",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.0",

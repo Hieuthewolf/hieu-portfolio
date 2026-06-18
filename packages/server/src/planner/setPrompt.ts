@@ -1,7 +1,5 @@
-import type Anthropic from "@anthropic-ai/sdk";
-import type { PlanSetInput, SetRole, SetStrategy, SetTrack } from "./types.js";
-
-const ROLES: SetRole[] = ["opener", "builder", "peak", "bridge", "closer"];
+import { z } from "zod";
+import type { PlanSetInput, SetStrategy, SetTrack } from "./types.js";
 
 export const SET_SYSTEM_PROMPT = `You're a warm, encouraging DJ mentor helping someone who's still learning order a pile of tracks into a \
 set. For each track you get its tempo, key (Camelot), an energy level (0–1) and whether that energy is \
@@ -21,37 +19,18 @@ Voice — this matters as much as the order:
 Always call the emit_set tool. Use the exact track ids you were given, each exactly once. Do not invent timestamps or \
 per-step coaching — only the order, a role per track, and the short narrative.`;
 
-export const SET_TOOL: Anthropic.Tool = {
-  name: "emit_set",
-  description: "Emit the chosen set order, a role per track, and a one-line narrative.",
-  input_schema: {
-    type: "object",
-    properties: {
-      order: {
-        type: "array",
-        items: { type: "string" },
-        description: "Every track id, exactly once, in play order.",
-      },
-      roles: {
-        type: "array",
-        description: "One entry per track: its role in the set.",
-        items: {
-          type: "object",
-          properties: {
-            id: { type: "string" },
-            role: { type: "string", enum: ROLES },
-          },
-          required: ["id", "role"],
-        },
-      },
-      narrative: {
-        type: "string",
-        description: "<=2 plain sentences describing the set's energy journey.",
-      },
-    },
-    required: ["order", "roles", "narrative"],
-  },
-};
+export const setSchema = z.object({
+  order: z.array(z.string()).describe("Every track id, exactly once, in play order."),
+  roles: z
+    .array(
+      z.object({
+        id: z.string(),
+        role: z.enum(["opener", "builder", "peak", "bridge", "closer"]),
+      }),
+    )
+    .describe("One entry per track: its role in the set."),
+  narrative: z.string().describe("<=2 plain sentences describing the set's energy journey."),
+});
 
 function arcWord(arc: number): string {
   return arc > 0.05 ? "rising" : arc < -0.05 ? "falling" : "steady";
