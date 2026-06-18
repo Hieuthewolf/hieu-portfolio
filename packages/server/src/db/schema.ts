@@ -79,3 +79,23 @@ export const tracks = pgTable("tracks", {
 });
 
 export type TrackRow = typeof tracks.$inferSelect;
+
+/**
+ * A set the user produced in the Set Builder and saved. `plan` is the full set
+ * plan (order/roles/gaps/narrative) plus a snapshot of the ordered tracks'
+ * metadata, so the set is self-contained without referencing the tracks table.
+ */
+export const sets = pgTable("sets", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  narrative: text("narrative"),
+  plan: jsonb("plan"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type SetRow = typeof sets.$inferSelect;

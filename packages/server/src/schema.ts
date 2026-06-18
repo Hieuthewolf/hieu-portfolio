@@ -9,6 +9,7 @@ const typeDefs = /* GraphQL */ `
     projects: [Project!]!
     me: User
     myTracks: [SavedTrack!]!
+    mySets: [SavedSet!]!
   }
 
   type User {
@@ -38,6 +39,20 @@ const typeDefs = /* GraphQL */ `
     musicalKey: String
     durationSec: Float
     analysis: JSON
+  }
+
+  type SavedSet {
+    id: ID!
+    name: String!
+    narrative: String
+    plan: JSON
+    createdAt: String!
+  }
+
+  input SaveSetInput {
+    name: String!
+    narrative: String
+    plan: JSON
   }
 
   type Profile {
@@ -187,6 +202,8 @@ const typeDefs = /* GraphQL */ `
     planSet(input: PlanSetInput!): SetPlan!
     saveTrack(input: SaveTrackInput!): SavedTrack!
     deleteTrack(id: ID!): ID!
+    saveSet(input: SaveSetInput!): SavedSet!
+    deleteSet(id: ID!): ID!
   }
 `;
 
