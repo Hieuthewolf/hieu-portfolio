@@ -11,6 +11,12 @@ export interface GraphQLContext {
 }
 
 export async function createContext(request: Request): Promise<GraphQLContext> {
-  const session = await auth.api.getSession({ headers: request.headers });
-  return { user: session?.user ?? null };
+  try {
+    const session = await auth.api.getSession({ headers: request.headers });
+    return { user: session?.user ?? null };
+  } catch {
+    // Never let a session lookup (e.g. a DB hiccup) take down public queries —
+    // degrade to anonymous; authed resolvers will just return Unauthorized.
+    return { user: null };
+  }
 }
