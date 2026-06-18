@@ -10,7 +10,8 @@
     "format": "prettier --write .",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
-    "relay": "pnpm --filter @portfolio/server print-schema && pnpm --filter @portfolio/web relay"
+    "relay": "pnpm --filter @portfolio/server print-schema && pnpm --filter @portfolio/web relay",
+    "vercel-build": "pnpm --filter @portfolio/server build && if [ -n \"$DATABASE_URL\" ]; then pnpm --filter @portfolio/server db:migrate; else echo 'No DATABASE_URL — skipping migrations'; fi && pnpm --filter @portfolio/server print-schema && pnpm --filter @portfolio/web run relay && pnpm --filter @portfolio/web build"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.1",
