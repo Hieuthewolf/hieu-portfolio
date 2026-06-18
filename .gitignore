@@ -2,7 +2,11 @@ node_modules/
 dist/
 *.tsbuildinfo
 .DS_Store
+# Secrets: ignore every .env variant (incl. .env.local, .env.development.local
+# from `vercel env pull`); keep the committed .env.example templates.
 .env
+.env.*
+!.env.example
 packages/web/src/__generated__/*
 !packages/web/src/__generated__/.gitkeep
 .vercel

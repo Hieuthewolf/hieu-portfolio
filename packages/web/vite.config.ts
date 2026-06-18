@@ -13,4 +13,11 @@ export default defineConfig({
       },
     }),
   ],
+  // Proxy /api/* (GraphQL + Better Auth) to the dev server so the browser stays
+  // same-origin — session cookies and credentialed Relay requests just work.
+  server: {
+    proxy: {
+      "/api": { target: "http://localhost:4000", changeOrigin: true },
+    },
+  },
 });

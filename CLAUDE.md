@@ -7,17 +7,25 @@ Guidance for working in this repo. Read before making changes.
 A personal portfolio, built as a pnpm monorepo, with an AI "DJ coach" (Segue) living inside it.
 
 - `packages/web` — Vite + React + TypeScript. The portfolio (data via **Relay/GraphQL**)
-  **and** Segue, which lives at `src/segue/` and renders at the `/segue` route.
+  **and** Segue, which lives at `src/segue/` and renders at the `/segue` route, plus a
+  `/library` route (saved tracks, behind auth).
 - `packages/server` — Node + GraphQL Yoga. The **single source of truth** for the schema
-  (profile/projects) and the Segue transition **planner** (`src/planner/`). Runs the local
-  dev server, and the deployed function imports from it.
-- `api/graphql.ts` — the **deployed** GraphQL endpoint as a Vercel serverless function. A
-  thin wrapper that imports the schema from `packages/server`'s *compiled* output
-  (`dist/schema.js`). (See "Deploy" — importing the `.ts` source crashes at runtime.)
+  (profile/projects), the Segue transition **planner** (`src/planner/`), the **database**
+  (Drizzle + Neon Postgres, `src/db/`) and **auth** (Better Auth, email/password, `src/auth.ts`).
+  Runs the local dev server, and the deployed functions import from it.
+- `api/graphql.ts` — the **deployed** GraphQL endpoint (Vercel serverless function); a thin
+  wrapper importing `packages/server`'s *compiled* `dist`. `api/auth/[...all].ts` — the
+  **deployed** Better Auth handler for `/api/auth/*`, same compiled-`dist` pattern. (See
+  "Deploy" — importing the `.ts` source crashes at runtime.)
 
 Routing is a deliberate one-liner, not a router library: `web/src/App.tsx` checks
-`window.location.pathname` — `/segue` renders the Segue app, everything else renders the
-Relay portfolio.
+`window.location.pathname` — `/segue` → Segue, `/library` → the saved-track library,
+everything else → the Relay portfolio. The Relay provider wraps all three so authenticated
+queries/mutations work everywhere.
+
+Auth + DB: the GraphQL Yoga **context** reads the Better Auth session (cookie) into
+`{ user }`; track resolvers (`me`/`myTracks`/`saveTrack`/`deleteTrack`) are scoped to that
+user. Tracks store metadata + lightweight analysis JSON (no audio, no waveform peaks).
 
 ## Run it
 
@@ -27,7 +35,14 @@ pnpm relay        # REQUIRED before dev/typecheck on a fresh clone (see gotchas)
 pnpm dev          # server :4000, web :5173 — portfolio at /, Segue at /segue
 ```
 
-Other scripts: `pnpm typecheck`, `pnpm test` (Vitest), `pnpm lint`, `pnpm build`.
+For DB/auth locally: put `DATABASE_URL` (Neon — `vercel env pull` writes it to a gitignored
+`.env*.local` at the repo root), plus `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL=http://localhost:5173`,
+in a local env file (see `packages/server/.env.example`). Then `pnpm --filter @portfolio/server db:migrate`.
+The dev server loads those files via `src/loadEnv.ts`; the Vite dev server proxies `/api/*` →
+`:4000` so the browser is same-origin (session cookies + credentialed Relay just work).
+
+Other scripts: `pnpm typecheck`, `pnpm test` (Vitest), `pnpm lint`, `pnpm build`,
+`pnpm --filter @portfolio/server db:generate` (after changing `src/db/schema.ts`).
 
 ## Gotchas (these cost real debugging time — don't undo them)
 
@@ -40,6 +55,11 @@ Other scripts: `pnpm typecheck`, `pnpm test` (Vitest), `pnpm lint`, `pnpm build`
   `require(...)` and the browser throws `require is not defined`.
 - **Relay config is `relay.config.json`, not `.js`.** With `"type": "module"`, a `.js` config
   trips relay-compiler's loader (`missing field language` / `__esModule`).
+- **`packages/web/schema.graphql` is GENERATED, not hand-edited.** It's printed from the server
+  schema by `packages/server/src/print-schema.ts` (run by `pnpm relay` and the Vercel build).
+  Add/changes types in the server `typeDefs`, then `pnpm relay` — never edit the SDL directly.
+- **Custom scalars need a Relay mapping.** The `JSON` scalar (saved-track analysis) is mapped
+  in `relay.config.json` `customScalarTypes` → `unknown`; add new scalars there too.
 - **`packages/web/tsconfig.json` relaxes two strict flags on purpose**, with comments:
   `noImplicitAny: false` (react-relay/relay-runtime v18 ship no usable types here) and
   `noUncheckedIndexedAccess: false` (the Segue DSP indexes typed arrays in hot loops).
@@ -54,18 +74,24 @@ One Vercel project, importing this repo at the root.
 - Web is served static (`packages/web/dist`); `api/graphql.ts` is the serverless GraphQL
   function. Build + output are set in the root `vercel.json`, which also has a SPA rewrite
   (`/((?!api/).*) → /index.html`) so `/segue` deep-links work.
-- **The function imports `packages/server`'s compiled `dist`, so `vercel.json`'s
-  `buildCommand` builds the server first** (`pnpm --filter @portfolio/server build`) before
-  the web build. Import the *compiled* `dist`, never `packages/server/src/*.ts`.
-- **`api/package.json` sets `"type": "module"` — don't remove it.** `packages/server` is pure
-  ESM; without this the handler compiles to CommonJS and `require()`-ing the ESM `dist` throws
-  `ERR_REQUIRE_ESM` → `FUNCTION_INVOCATION_FAILED` (HTTP 500). Local Node (≥22) allows
-  require-of-ESM so it won't reproduce locally — **verify function changes on a Vercel preview
-  deploy** (`vercel build && vercel deploy --prebuilt`, then curl the preview URL), not on
-  `main`, which deploys straight to production.
-- Env vars on the project: `VITE_GRAPHQL_ENDPOINT = /api/graphql`, and
-  `ANTHROPIC_API_KEY = sk-ant-…` (server-side only). **Without the key the planner falls back
-  to a deterministic heuristic** — the app never breaks.
+- **Both functions (`api/graphql.ts`, `api/auth/[...all].ts`) import `packages/server`'s
+  compiled `dist`, so `vercel.json`'s `buildCommand` builds the server first**, then runs
+  `db:migrate` (committed Drizzle migrations) and `print-schema`, then the web `relay` + build.
+  Import the *compiled* `dist`, never `packages/server/src/*.ts`.
+- **`api/package.json` sets `"type": "module"` — don't remove it** (covers nested `api/**`).
+  `packages/server` is pure ESM; without this a handler compiles to CommonJS and `require()`-ing
+  the ESM `dist` throws `ERR_REQUIRE_ESM` → `FUNCTION_INVOCATION_FAILED` (HTTP 500). Local Node
+  (≥22) allows require-of-ESM so it won't reproduce locally — **verify function changes on a
+  Vercel preview deploy**, not on `main`, which deploys straight to production. (Caveat: the
+  *auth flow itself* can't fully verify on previews — Better Auth cookies/`BETTER_AUTH_URL` are
+  origin-specific and preview URLs are dynamic; verify auth locally or on prod.)
+- Env vars on the project (server-side only unless `VITE_`-prefixed):
+  `VITE_GRAPHQL_ENDPOINT = /api/graphql`; `ANTHROPIC_API_KEY` (without it the planner falls back
+  to a heuristic — never breaks); `DATABASE_URL` (Neon, **needed at build for `db:migrate` and
+  at runtime**); `BETTER_AUTH_SECRET` (**required** — signs sessions; prod refuses the default);
+  `BETTER_AUTH_URL` (the app origin, e.g. `https://hieu-segue.vercel.app`); `AUTH_ALLOWED_EMAILS`
+  (comma-separated allowlist that locks email/password sign-up — set it so the public deploy
+  isn't open registration). Secrets never get a `VITE_` prefix (that would ship them to the browser).
 - Every push to `main` auto-deploys.
 
 ## Planner design
@@ -77,9 +103,12 @@ deterministic code resolves exact beat-aligned timestamps and computes harmonic 
 
 ## Single source of truth
 
-The schema, portfolio data, and planner live only in `packages/server`. The local dev server
-(`src/index.ts`) and the deployed function (`api/graphql.ts`) both import them — the function
-from the compiled `dist`. Don't reintroduce an inlined copy in `api/graphql.ts`.
+The schema, portfolio data, planner, DB schema, and auth config live only in `packages/server`.
+The local dev server (`src/index.ts`) and the deployed functions (`api/graphql.ts`,
+`api/auth/[...all].ts`) both import them — the functions from the compiled `dist`. The Yoga
+`context` (`src/context.ts`) is shared by dev + serverless so the auth surface is identical.
+The Relay client SDL (`packages/web/schema.graphql`) is generated from this schema. Don't
+reintroduce inlined copies in the `api/*` functions.
 
 ## Conventions
 
@@ -116,7 +145,9 @@ from the compiled `dist`. Don't reintroduce an inlined copy in `api/graphql.ts`.
 - One query per route (`useLazyLoadQuery`); components declare what they need with
   `useFragment` and spread fragments up the tree. Don't refetch what a fragment already has.
 - Let the compiler-generated `__generated__` types flow through — don't hand-write or
-  duplicate them. Run `pnpm relay` after changing any `graphql` tag.
+  duplicate them. Run `pnpm relay` after changing any `graphql` tag (it also regenerates the SDL).
+- The network layer (`RelayEnvironment.ts`) sends `credentials: "include"` so the auth cookie
+  rides along; mutations use `useMutation`. (Segue's planner still uses raw `fetch`, not Relay.)
 
 ### Working autonomously
 

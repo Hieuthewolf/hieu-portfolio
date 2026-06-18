@@ -2,9 +2,42 @@ import { createSchema } from "graphql-yoga";
 import { resolvers } from "./resolvers.js";
 
 const typeDefs = /* GraphQL */ `
+  scalar JSON
+
   type Query {
     profile: Profile!
     projects: [Project!]!
+    me: User
+    myTracks: [SavedTrack!]!
+  }
+
+  type User {
+    id: ID!
+    email: String!
+    name: String
+    image: String
+  }
+
+  type SavedTrack {
+    id: ID!
+    title: String!
+    artist: String
+    bpm: Float
+    camelot: String
+    musicalKey: String
+    durationSec: Float
+    analysis: JSON
+    createdAt: String!
+  }
+
+  input SaveTrackInput {
+    title: String!
+    artist: String
+    bpm: Float
+    camelot: String
+    musicalKey: String
+    durationSec: Float
+    analysis: JSON
   }
 
   type Profile {
@@ -152,6 +185,8 @@ const typeDefs = /* GraphQL */ `
   type Mutation {
     planTransition(input: PlanTransitionInput!): TransitionPlan!
     planSet(input: PlanSetInput!): SetPlan!
+    saveTrack(input: SaveTrackInput!): SavedTrack!
+    deleteTrack(id: ID!): ID!
   }
 `;
 

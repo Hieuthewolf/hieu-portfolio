@@ -1,18 +1,134 @@
-type Query {
-  profile: Profile!
-  projects: [Project!]!
+input EnergySummaryInput {
+  arc: Float!
+  mean: Float!
+  peak: Float!
+}
+
+scalar JSON
+
+type Mutation {
+  deleteTrack(id: ID!): ID!
+  planSet(input: PlanSetInput!): SetPlan!
+  planTransition(input: PlanTransitionInput!): TransitionPlan!
+  saveTrack(input: SaveTrackInput!): SavedTrack!
+}
+
+input PlanOptionsInput {
+  beatmatch: Boolean!
+  phraseBars: Int!
+}
+
+input PlanSetInput {
+  options: SetOptionsInput!
+  tracks: [SetTrackInput!]!
+}
+
+input PlanTransitionInput {
+  a: TrackFeaturesInput!
+  b: TrackFeaturesInput!
+  options: PlanOptionsInput!
+}
+
+type PlaybookStep {
+  action: String!
+  atBar: Int!
 }
 
 type Profile {
-  name: String!
-  role: String!
-  tagline: String!
-  location: String!
   education: String!
   email: String!
   github: String!
   linkedin: String!
+  location: String!
+  name: String!
+  role: String!
   skills: [SkillGroup!]!
+  tagline: String!
+}
+
+type Project {
+  blurb: String!
+  decision: String!
+  id: ID!
+  index: String!
+  metrics: [String!]!
+  org: String!
+  tags: [String!]!
+  title: String!
+  year: String!
+}
+
+type Query {
+  me: User
+  myTracks: [SavedTrack!]!
+  profile: Profile!
+  projects: [Project!]!
+}
+
+input SaveTrackInput {
+  analysis: JSON
+  artist: String
+  bpm: Float
+  camelot: String
+  durationSec: Float
+  musicalKey: String
+  title: String!
+}
+
+type SavedTrack {
+  analysis: JSON
+  artist: String
+  bpm: Float
+  camelot: String
+  createdAt: String!
+  durationSec: Float
+  id: ID!
+  musicalKey: String
+  title: String!
+}
+
+input SectionInput {
+  endBar: Int!
+  kind: String!
+  startBar: Int!
+  startSec: Float!
+}
+
+type SetGap {
+  bpmDiff: Float!
+  compatible: Boolean!
+  difficulty: String!
+  fromId: ID!
+  mixOutSec: Float
+  risk: Boolean!
+  technique: String!
+  toId: ID!
+}
+
+input SetOptionsInput {
+  beatmatch: Boolean!
+  introId: ID
+  outroId: ID
+  phraseBars: Int!
+}
+
+type SetPlan {
+  gaps: [SetGap!]!
+  narrative: String!
+  order: [ID!]!
+  roles: [SetRoleEntry!]!
+  source: String!
+}
+
+type SetRoleEntry {
+  id: ID!
+  role: String!
+}
+
+input SetTrackInput {
+  energy: EnergySummaryInput!
+  features: TrackFeaturesInput!
+  id: ID!
 }
 
 type SkillGroup {
@@ -20,14 +136,47 @@ type SkillGroup {
   items: [String!]!
 }
 
-type Project {
+input TrackFeaturesInput {
+  beat: Float!
+  bpm: Float!
+  camelot: String
+  duration: Float!
+  key: String
+  phase: Float!
+  sections: [SectionInput!]!
+  vocalRegions: [VocalRegionInput!]
+}
+
+type TransitionPlan {
+  beatmatch: Boolean!
+  bpmDiff: Float!
+  coachNote: String!
+  compatible: Boolean!
+  difficulty: String!
+  mixInSection: String!
+  mixOutSec: Float
+  mixOutSection: String!
+  mixStartA: Float!
+  mixStartB: Float!
+  phraseBars: Int!
+  playbook: [PlaybookStep!]!
+  rationale: String!
+  source: String!
+  technique: String!
+  transLen: Float!
+  vocalEase: Boolean!
+  warp: Float!
+}
+
+type User {
+  email: String!
   id: ID!
-  index: String!
-  year: String!
-  title: String!
-  org: String!
-  blurb: String!
-  decision: String!
-  metrics: [String!]!
-  tags: [String!]!
+  image: String
+  name: String
+}
+
+input VocalRegionInput {
+  confidence: Float!
+  endSec: Float!
+  startSec: Float!
 }

@@ -27,7 +27,7 @@ import type {
   VocalRegion,
 } from "./types";
 
-const ENDPOINT = import.meta.env.VITE_GRAPHQL_ENDPOINT ?? "http://localhost:4000/graphql";
+const ENDPOINT = import.meta.env.VITE_GRAPHQL_ENDPOINT ?? "/api/graphql";
 
 const MUTATION = `
   mutation Plan($input: PlanTransitionInput!) {

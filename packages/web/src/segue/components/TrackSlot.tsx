@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { theme } from "../theme";
 import { fmt } from "../utils/format";
 import { Term } from "./Term";
+import { SaveTrackButton } from "./SaveTrackButton";
 import type { Track } from "../audio/types";
 
 interface TrackSlotProps {
@@ -26,28 +27,31 @@ export function TrackSlot({ tag, role, track, onFile }: TrackSlotProps) {
         gap: 12,
       }}
     >
-      <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-        <span
-          style={{
-            fontFamily: theme.serif,
-            fontSize: 22,
-            fontWeight: 600,
-            color: theme.accent,
-          }}
-        >
-          {tag}
-        </span>
-        <span
-          style={{
-            fontFamily: theme.mono,
-            fontSize: 10.5,
-            letterSpacing: "0.14em",
-            textTransform: "uppercase",
-            color: theme.muted,
-          }}
-        >
-          {role}
-        </span>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+          <span
+            style={{
+              fontFamily: theme.serif,
+              fontSize: 22,
+              fontWeight: 600,
+              color: theme.accent,
+            }}
+          >
+            {tag}
+          </span>
+          <span
+            style={{
+              fontFamily: theme.mono,
+              fontSize: 10.5,
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+              color: theme.muted,
+            }}
+          >
+            {role}
+          </span>
+        </div>
+        {track && <SaveTrackButton track={track} />}
       </div>
 
       <input
