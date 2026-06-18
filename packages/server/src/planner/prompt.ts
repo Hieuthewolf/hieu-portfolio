@@ -1,4 +1,4 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
 import type { PlanInput, TrackFeatures } from "./types.js";
 
 export const SYSTEM_PROMPT = `You're a warm, encouraging DJ mentor showing someone who's still learning how to mix track A (playing) into \
@@ -61,95 +61,62 @@ for pure listening steps.
 Always call the emit_plan tool with your decision. Reference concrete values (BPM, Camelot codes, sections). Do not \
 invent timestamps — only choose the strategy and write the coaching; exact timing is resolved downstream from the section grid.`;
 
-export const PLAN_TOOL: Anthropic.Tool = {
-  name: "emit_plan",
-  description: "Emit the chosen transition strategy and coaching playbook.",
-  input_schema: {
-    type: "object",
-    properties: {
-      technique: {
-        type: "string",
-        enum: [
-          "Long beatmatched blend",
-          "Bass-swap blend",
-          "Breakdown swap",
-          "Phrase cut",
-          "Echo / filter out",
-          "Double drop",
-        ],
-      },
-      mixOutSection: { type: "string", enum: ["drop", "breakdown", "outro"], description: "Section of A to mix out of." },
-      mixOutSec: {
-        type: "number",
-        description:
-          "Optional exact out-point in seconds — set it to mix out of a SPECIFIC section, e.g. a drop in the middle " +
-          "of A (read the timestamp from A's sections). Omit to use A's labelled mixOutSection (its ending).",
-      },
-      mixInSection: { type: "string", enum: ["intro", "build", "drop"], description: "Section of B to mix into." },
-      phraseBars: { type: "integer", enum: [8, 16, 32], description: "Overlap length in bars." },
-      warpBToA: { type: "boolean", description: "Warp B's tempo to match A (beatmatch)." },
-      difficulty: { type: "string", enum: ["easy", "moderate", "tricky"] },
-      rationale: {
-        type: "string",
-        description: "<=2 short, plain-language sentences referencing BPM/Camelot/sections.",
-      },
-      coachNote: { type: "string", description: "The one mistake to avoid, in plain words." },
-      playbook: {
-        type: "array",
-        description: "Ordered, plain-language steps a first-timer can follow.",
-        items: {
-          type: "object",
-          properties: {
-            atBar: { type: "integer", description: "Bar offset within the transition where this step happens." },
-            action: { type: "string", description: "One calm instruction." },
-            controls: {
-              type: "array",
-              description:
-                "The physical control(s) on the DDJ-FLX4 this step touches, so we can highlight them. " +
-                "Omit for ear-only steps (e.g. 'listen for the kicks'). target: A=left channel/deck, " +
-                "B=right channel/deck, center=crossfader.",
-              items: {
-                type: "object",
-                properties: {
-                  target: { type: "string", enum: ["A", "B", "center"] },
-                  part: {
-                    type: "string",
-                    enum: [
-                      "lowEQ",
-                      "midEQ",
-                      "hiEQ",
-                      "filter",
-                      "channelFader",
-                      "crossfader",
-                      "play",
-                      "cue",
-                      "jog",
-                      "tempo",
-                    ],
-                  },
-                  dir: { type: "string", enum: ["up", "down"], description: "Which way to move it, if it's a knob/fader." },
-                },
-                required: ["target", "part"],
-              },
-            },
-          },
-          required: ["atBar", "action"],
-        },
-      },
-    },
-    required: [
-      "technique",
-      "mixOutSection",
-      "mixInSection",
-      "phraseBars",
-      "warpBToA",
-      "difficulty",
-      "rationale",
-      "coachNote",
-      "playbook",
-    ],
-  },
-};
+// Structured output the model must return (validated by the AI SDK). Mirrors the
+// Strategy type; descriptions guide the model. phraseBars is a plain integer
+// (snapped to 8/16/32 downstream) — numeric enums aren't reliable across providers.
+export const planSchema = z.object({
+  technique: z.enum([
+    "Long beatmatched blend",
+    "Bass-swap blend",
+    "Breakdown swap",
+    "Phrase cut",
+    "Echo / filter out",
+    "Double drop",
+  ]),
+  mixOutSection: z.enum(["drop", "breakdown", "outro"]).describe("Section of A to mix out of."),
+  mixOutSec: z
+    .number()
+    .optional()
+    .describe(
+      "Optional exact out-point in seconds — set it to mix out of a SPECIFIC section, e.g. a drop " +
+        "mid-song (read the timestamp from A's sections). Omit to use A's labelled mixOutSection.",
+    ),
+  mixInSection: z.enum(["intro", "build", "drop"]).describe("Section of B to mix into."),
+  phraseBars: z.number().int().describe("Overlap length in bars: 8, 16, or 32."),
+  warpBToA: z.boolean().describe("Warp B's tempo to match A (beatmatch)."),
+  difficulty: z.enum(["easy", "moderate", "tricky"]),
+  rationale: z.string().describe("<=2 short, plain-language sentences referencing BPM/Camelot/sections."),
+  coachNote: z.string().describe("The one mistake to avoid, in plain words."),
+  playbook: z
+    .array(
+      z.object({
+        atBar: z.number().int().describe("Bar offset within the transition where this step happens."),
+        action: z.string().describe("One calm instruction."),
+        controls: z
+          .array(
+            z.object({
+              target: z.enum(["A", "B", "center"]).describe("A=left channel/deck, B=right channel/deck, center=crossfader."),
+              part: z.enum([
+                "lowEQ",
+                "midEQ",
+                "hiEQ",
+                "filter",
+                "channelFader",
+                "crossfader",
+                "play",
+                "cue",
+                "jog",
+                "tempo",
+              ]),
+              dir: z.enum(["up", "down"]).optional().describe("Which way to move it, if it's a knob/fader."),
+            }),
+          )
+          .optional()
+          .describe("The DDJ-FLX4 control(s) this step touches. Omit for ear-only steps."),
+      }),
+    )
+    .describe("Ordered, plain-language steps a first-timer can follow."),
+});
 
 function fmtTime(sec: number): string {
   const m = Math.floor(sec / 60);
