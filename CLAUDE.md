@@ -86,8 +86,7 @@ One Vercel project, importing this repo at the root.
   *auth flow itself* can't fully verify on previews — Better Auth cookies/`BETTER_AUTH_URL` are
   origin-specific and preview URLs are dynamic; verify auth locally or on prod.)
 - Env vars on the project (server-side only unless `VITE_`-prefixed):
-  `VITE_GRAPHQL_ENDPOINT = /api/graphql`; `GOOGLE_GENERATIVE_AI_API_KEY` (Gemini, free Google AI
-  Studio tier — without it the planner falls back to a heuristic, never breaks); `DATABASE_URL`
+  `VITE_GRAPHQL_ENDPOINT = /api/graphql`; `DATABASE_URL`
   (Neon, **needed at build for `db:migrate` and at runtime**); `BETTER_AUTH_SECRET` (**required**
   — signs sessions; prod refuses the default); `BETTER_AUTH_URL` (the app origin, e.g.
   `https://hieu-portfolio-seven.vercel.app`); `AUTH_ALLOWED_EMAILS`
@@ -97,11 +96,12 @@ One Vercel project, importing this repo at the root.
 
 ## Planner design
 
-The browser does all audio DSP + section detection and sends only numbers/labels. The LLM
-(Gemini via the AI SDK `generateObject`, structured output) picks a *strategy* (technique,
-sections, phrase length, coaching). Then deterministic code resolves exact beat-aligned
-timestamps and computes harmonic compatibility — never trusting those to the model. The API
-key lives only on the server.
+The browser does all audio DSP + section detection and sends only numbers/labels. A
+deterministic planner (`src/planner/`) picks the *strategy* (technique, sections, phrase
+length, coaching) from tempo/key/structure, then resolves exact beat-aligned timestamps and
+harmonic compatibility. It's currently **heuristic-only** — an LLM strategy step (which only
+ever picks the judgment, never the timing) can be layered back into `index.ts`/`setIndex.ts`
+later; see git history for a Gemini/AI-SDK implementation.
 
 ## Single source of truth
 
