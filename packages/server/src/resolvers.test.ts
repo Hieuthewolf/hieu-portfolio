@@ -34,4 +34,20 @@ describe("track resolver auth guards", () => {
       /Unauthorized/,
     );
   });
+
+  it("mySetlists returns an empty list for anonymous users", async () => {
+    expect(await resolvers.Query.mySetlists({}, {}, anon)).toEqual([]);
+  });
+
+  it("setlist mutations reject anonymous users", async () => {
+    await expect(resolvers.Mutation.createSetlist({}, { name: "x" }, anon)).rejects.toThrow(
+      /Unauthorized/,
+    );
+    await expect(
+      resolvers.Mutation.addSetlistTrack({}, { setlistId: "s", input: { title: "t" } }, anon),
+    ).rejects.toThrow(/Unauthorized/);
+    await expect(resolvers.Mutation.deleteSetlist({}, { id: "x" }, anon)).rejects.toThrow(
+      /Unauthorized/,
+    );
+  });
 });

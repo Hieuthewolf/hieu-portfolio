@@ -99,3 +99,38 @@ export const sets = pgTable("sets", {
 });
 
 export type SetRow = typeof sets.$inferSelect;
+
+/**
+ * Manual, hand-assembled setlists of typed tracks (no audio analysis). Each track
+ * has a title + optional artist and a flexible source: an external `link` (e.g. a
+ * SoundCloud URL) and/or an uploaded MP3 stored in Vercel Blob (`audioUrl`).
+ */
+export const setlists = pgTable("setlists", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const setlistTracks = pgTable("setlist_tracks", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  setlistId: text("setlist_id")
+    .notNull()
+    .references(() => setlists.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  artist: text("artist"),
+  link: text("link"),
+  audioUrl: text("audio_url"),
+  audioName: text("audio_name"),
+  position: real("position").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type SetlistRow = typeof setlists.$inferSelect;
+export type SetlistTrackRow = typeof setlistTracks.$inferSelect;

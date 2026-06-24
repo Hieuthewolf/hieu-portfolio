@@ -10,6 +10,7 @@ const typeDefs = /* GraphQL */ `
     me: User
     myTracks: [SavedTrack!]!
     mySets: [SavedSet!]!
+    mySetlists: [Setlist!]!
   }
 
   type User {
@@ -53,6 +54,33 @@ const typeDefs = /* GraphQL */ `
     name: String!
     narrative: String
     plan: JSON
+  }
+
+  # ---- Manual setlists (hand-typed tracks; links or uploaded MP3s) ----
+
+  type Setlist {
+    id: ID!
+    name: String!
+    createdAt: String!
+    tracks: [SetlistTrack!]!
+  }
+
+  type SetlistTrack {
+    id: ID!
+    title: String!
+    artist: String
+    link: String
+    audioUrl: String
+    audioName: String
+    position: Float!
+  }
+
+  input SetlistTrackInput {
+    title: String!
+    artist: String
+    link: String
+    audioUrl: String
+    audioName: String
   }
 
   type Profile {
@@ -204,6 +232,12 @@ const typeDefs = /* GraphQL */ `
     deleteTrack(id: ID!): ID!
     saveSet(input: SaveSetInput!): SavedSet!
     deleteSet(id: ID!): ID!
+    createSetlist(name: String!): Setlist!
+    renameSetlist(id: ID!, name: String!): Setlist!
+    deleteSetlist(id: ID!): ID!
+    addSetlistTrack(setlistId: ID!, input: SetlistTrackInput!): SetlistTrack!
+    removeSetlistTrack(id: ID!): ID!
+    reorderSetlist(id: ID!, trackIds: [ID!]!): Setlist!
   }
 `;
 

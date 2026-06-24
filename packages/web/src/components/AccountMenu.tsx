@@ -30,6 +30,9 @@ export function AccountMenu() {
       <a href="/library" style={pill}>
         Library
       </a>
+      <a href="/setlists" style={pill}>
+        Setlists
+      </a>
       {session.user.image ? (
         <img
           src={session.user.image}

@@ -3,6 +3,7 @@ import { RelayEnvironmentProvider } from "react-relay";
 import { RelayEnvironment } from "./RelayEnvironment";
 import { Portfolio } from "./components/Portfolio";
 import { Library } from "./components/Library";
+import { Setlists } from "./components/Setlists";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { App as SegueApp } from "./segue/App";
 import { theme } from "./theme";
@@ -21,6 +22,10 @@ export function App() {
   ) : path.startsWith("/library") ? (
     <Suspense fallback={loading}>
       <Library />
+    </Suspense>
+  ) : path.startsWith("/setlists") ? (
+    <Suspense fallback={loading}>
+      <Setlists />
     </Suspense>
   ) : (
     <Suspense fallback={loading}>
