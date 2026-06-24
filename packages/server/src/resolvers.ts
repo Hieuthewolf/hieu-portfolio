@@ -46,6 +46,8 @@ interface SetlistTrackInput {
   link?: string | null;
   audioUrl?: string | null;
   audioName?: string | null;
+  bpm?: number | null;
+  camelot?: string | null;
 }
 
 /** Load a setlist the caller owns, or throw. */
@@ -174,7 +176,7 @@ export const resolvers = {
       ctx: GraphQLContext,
     ) => {
       await requireOwnedSetlist(ctx, args.setlistId);
-      const { title, artist, link, audioUrl, audioName } = args.input;
+      const { title, artist, link, audioUrl, audioName, bpm, camelot } = args.input;
       if (!title.trim() || title.length > 300) {
         throw new GraphQLError("Invalid title", { extensions: { code: "BAD_INPUT" } });
       }
@@ -191,7 +193,7 @@ export const resolvers = {
       const position = existing.reduce((m, r) => Math.max(m, r.position), 0) + 1;
       const [row] = await db
         .insert(setlistTracks)
-        .values({ setlistId: args.setlistId, title, artist, link, audioUrl, audioName, position })
+        .values({ setlistId: args.setlistId, title, artist, link, audioUrl, audioName, bpm, camelot, position })
         .returning();
       return row;
     },

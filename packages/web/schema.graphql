@@ -166,6 +166,8 @@ type SetlistTrack {
   artist: String
   audioName: String
   audioUrl: String
+  bpm: Float
+  camelot: String
   id: ID!
   link: String
   position: Float!
@@ -176,6 +178,8 @@ input SetlistTrackInput {
   artist: String
   audioName: String
   audioUrl: String
+  bpm: Float
+  camelot: String
   link: String
   title: String!
 }

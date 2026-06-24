@@ -128,6 +128,9 @@ export const setlistTracks = pgTable("setlist_tracks", {
   link: text("link"),
   audioUrl: text("audio_url"),
   audioName: text("audio_name"),
+  // Optional snapshot when the entry was pulled from an analyzed Library track.
+  bpm: real("bpm"),
+  camelot: text("camelot"),
   position: real("position").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
