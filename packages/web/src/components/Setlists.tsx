@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { graphql, useLazyLoadQuery, useMutation } from "react-relay";
 import { upload } from "@vercel/blob/client";
 import { theme } from "../theme";
@@ -299,7 +299,7 @@ export function Setlists() {
   );
 }
 
-function Shell({ children }: { children: React.ReactNode }) {
+function Shell({ children }: { children: ReactNode }) {
   return (
     <div style={{ minHeight: "100vh", background: theme.bg, color: theme.ink }}>
       <div style={{ maxWidth: 820, margin: "0 auto", padding: "48px 24px 80px" }}>

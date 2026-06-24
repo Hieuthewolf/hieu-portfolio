@@ -20,6 +20,10 @@ function requireUser(ctx: GraphQLContext) {
   return ctx.user;
 }
 
+// Drizzle returns a Date for timestamp columns; expose a stable ISO string.
+const isoCreatedAt = (row: { createdAt: Date | string }) =>
+  row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt);
+
 interface SaveTrackInput {
   title: string;
   artist?: string | null;
@@ -57,18 +61,10 @@ async function requireOwnedSetlist(ctx: GraphQLContext, id: string) {
 
 export const resolvers = {
   JSON: JSONScalar,
-  SavedTrack: {
-    // Drizzle returns a Date for timestamp columns; expose a stable ISO string.
-    createdAt: (row: { createdAt: Date | string }) =>
-      row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
-  },
-  SavedSet: {
-    createdAt: (row: { createdAt: Date | string }) =>
-      row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
-  },
+  SavedTrack: { createdAt: isoCreatedAt },
+  SavedSet: { createdAt: isoCreatedAt },
   Setlist: {
-    createdAt: (row: { createdAt: Date | string }) =>
-      row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
+    createdAt: isoCreatedAt,
     tracks: (row: { id: string }) =>
       db
         .select()
