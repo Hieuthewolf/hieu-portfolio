@@ -3,7 +3,6 @@ import { RelayEnvironmentProvider } from "react-relay";
 import { RelayEnvironment } from "./RelayEnvironment";
 import { Portfolio } from "./components/Portfolio";
 import { Library } from "./components/Library";
-import { Setlists } from "./components/Setlists";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { App as SegueApp } from "./segue/App";
 import { theme } from "./theme";
@@ -17,15 +16,13 @@ export function App() {
   // The Relay provider wraps all of them so authenticated queries/mutations work
   // on every surface (Segue's "save to library", the /library page).
   const path = typeof window !== "undefined" ? window.location.pathname : "/";
+  // /library is the unified home (saved tracks, AI sets, and setlists); /setlists
+  // is kept as an alias so old links still resolve.
   const surface = path.startsWith("/segue") ? (
     <SegueApp />
-  ) : path.startsWith("/library") ? (
+  ) : path.startsWith("/library") || path.startsWith("/setlists") ? (
     <Suspense fallback={loading}>
       <Library />
-    </Suspense>
-  ) : path.startsWith("/setlists") ? (
-    <Suspense fallback={loading}>
-      <Setlists />
     </Suspense>
   ) : (
     <Suspense fallback={loading}>

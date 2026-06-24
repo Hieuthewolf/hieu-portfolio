@@ -72,6 +72,8 @@ const typeDefs = /* GraphQL */ `
     link: String
     audioUrl: String
     audioName: String
+    bpm: Float
+    camelot: String
     position: Float!
   }
 
@@ -81,6 +83,8 @@ const typeDefs = /* GraphQL */ `
     link: String
     audioUrl: String
     audioName: String
+    bpm: Float
+    camelot: String
   }
 
   type Profile {
