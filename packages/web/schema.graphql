@@ -7,10 +7,16 @@ input EnergySummaryInput {
 scalar JSON
 
 type Mutation {
+  addSetlistTrack(input: SetlistTrackInput!, setlistId: ID!): SetlistTrack!
+  createSetlist(name: String!): Setlist!
   deleteSet(id: ID!): ID!
+  deleteSetlist(id: ID!): ID!
   deleteTrack(id: ID!): ID!
   planSet(input: PlanSetInput!): SetPlan!
   planTransition(input: PlanTransitionInput!): TransitionPlan!
+  removeSetlistTrack(id: ID!): ID!
+  renameSetlist(id: ID!, name: String!): Setlist!
+  reorderSetlist(id: ID!, trackIds: [ID!]!): Setlist!
   saveSet(input: SaveSetInput!): SavedSet!
   saveTrack(input: SaveTrackInput!): SavedTrack!
 }
@@ -62,6 +68,7 @@ type Project {
 
 type Query {
   me: User
+  mySetlists: [Setlist!]!
   mySets: [SavedSet!]!
   myTracks: [SavedTrack!]!
   profile: Profile!
@@ -146,6 +153,31 @@ input SetTrackInput {
   energy: EnergySummaryInput!
   features: TrackFeaturesInput!
   id: ID!
+}
+
+type Setlist {
+  createdAt: String!
+  id: ID!
+  name: String!
+  tracks: [SetlistTrack!]!
+}
+
+type SetlistTrack {
+  artist: String
+  audioName: String
+  audioUrl: String
+  id: ID!
+  link: String
+  position: Float!
+  title: String!
+}
+
+input SetlistTrackInput {
+  artist: String
+  audioName: String
+  audioUrl: String
+  link: String
+  title: String!
 }
 
 type SkillGroup {

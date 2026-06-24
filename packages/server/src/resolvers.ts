@@ -1,11 +1,11 @@
 import { GraphQLError, GraphQLScalarType } from "graphql";
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { profile, projects } from "./data.js";
 import { plan } from "./planner/index.js";
 import { planSet } from "./planner/setIndex.js";
 import type { PlanInput, PlanSetInput } from "./planner/types.js";
 import { db } from "./db/index.js";
-import { sets, tracks } from "./db/schema.js";
+import { setlists, setlistTracks, sets, tracks } from "./db/schema.js";
 import type { GraphQLContext } from "./context.js";
 
 // Pass-through JSON scalar for the stored track analysis blob.
@@ -36,6 +36,25 @@ interface SaveSetInput {
   plan?: unknown;
 }
 
+interface SetlistTrackInput {
+  title: string;
+  artist?: string | null;
+  link?: string | null;
+  audioUrl?: string | null;
+  audioName?: string | null;
+}
+
+/** Load a setlist the caller owns, or throw. */
+async function requireOwnedSetlist(ctx: GraphQLContext, id: string) {
+  const user = requireUser(ctx);
+  const [row] = await db
+    .select()
+    .from(setlists)
+    .where(and(eq(setlists.id, id), eq(setlists.userId, user.id)));
+  if (!row) throw new GraphQLError("Not found", { extensions: { code: "NOT_FOUND" } });
+  return { user, setlist: row };
+}
+
 export const resolvers = {
   JSON: JSONScalar,
   SavedTrack: {
@@ -46,6 +65,16 @@ export const resolvers = {
   SavedSet: {
     createdAt: (row: { createdAt: Date | string }) =>
       row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
+  },
+  Setlist: {
+    createdAt: (row: { createdAt: Date | string }) =>
+      row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
+    tracks: (row: { id: string }) =>
+      db
+        .select()
+        .from(setlistTracks)
+        .where(eq(setlistTracks.setlistId, row.id))
+        .orderBy(asc(setlistTracks.position)),
   },
   Query: {
     profile: () => profile,
@@ -60,6 +89,14 @@ export const resolvers = {
     mySets: (_p: unknown, _a: unknown, ctx: GraphQLContext) => {
       if (!ctx.user) return [];
       return db.select().from(sets).where(eq(sets.userId, ctx.user.id)).orderBy(desc(sets.createdAt));
+    },
+    mySetlists: (_p: unknown, _a: unknown, ctx: GraphQLContext) => {
+      if (!ctx.user) return [];
+      return db
+        .select()
+        .from(setlists)
+        .where(eq(setlists.userId, ctx.user.id))
+        .orderBy(desc(setlists.createdAt));
     },
   },
   Mutation: {
@@ -106,6 +143,94 @@ export const resolvers = {
       const user = requireUser(ctx);
       await db.delete(sets).where(and(eq(sets.id, args.id), eq(sets.userId, user.id)));
       return args.id;
+    },
+
+    createSetlist: async (_p: unknown, args: { name: string }, ctx: GraphQLContext) => {
+      const user = requireUser(ctx);
+      const name = args.name.trim();
+      if (!name || name.length > 200) {
+        throw new GraphQLError("Invalid name", { extensions: { code: "BAD_INPUT" } });
+      }
+      const [row] = await db.insert(setlists).values({ name, userId: user.id }).returning();
+      return row;
+    },
+    renameSetlist: async (_p: unknown, args: { id: string; name: string }, ctx: GraphQLContext) => {
+      await requireOwnedSetlist(ctx, args.id);
+      const name = args.name.trim();
+      if (!name || name.length > 200) {
+        throw new GraphQLError("Invalid name", { extensions: { code: "BAD_INPUT" } });
+      }
+      const [row] = await db
+        .update(setlists)
+        .set({ name })
+        .where(eq(setlists.id, args.id))
+        .returning();
+      return row;
+    },
+    deleteSetlist: async (_p: unknown, args: { id: string }, ctx: GraphQLContext) => {
+      const user = requireUser(ctx);
+      await db.delete(setlists).where(and(eq(setlists.id, args.id), eq(setlists.userId, user.id)));
+      return args.id;
+    },
+    addSetlistTrack: async (
+      _p: unknown,
+      args: { setlistId: string; input: SetlistTrackInput },
+      ctx: GraphQLContext,
+    ) => {
+      await requireOwnedSetlist(ctx, args.setlistId);
+      const { title, artist, link, audioUrl, audioName } = args.input;
+      if (!title.trim() || title.length > 300) {
+        throw new GraphQLError("Invalid title", { extensions: { code: "BAD_INPUT" } });
+      }
+      for (const v of [link, audioUrl]) {
+        if (v && v.length > 2000) {
+          throw new GraphQLError("Link too long", { extensions: { code: "BAD_INPUT" } });
+        }
+      }
+      // Append after the current last track.
+      const existing = await db
+        .select({ position: setlistTracks.position })
+        .from(setlistTracks)
+        .where(eq(setlistTracks.setlistId, args.setlistId));
+      const position = existing.reduce((m, r) => Math.max(m, r.position), 0) + 1;
+      const [row] = await db
+        .insert(setlistTracks)
+        .values({ setlistId: args.setlistId, title, artist, link, audioUrl, audioName, position })
+        .returning();
+      return row;
+    },
+    removeSetlistTrack: async (_p: unknown, args: { id: string }, ctx: GraphQLContext) => {
+      const user = requireUser(ctx);
+      // Only delete if the track belongs to one of the caller's setlists.
+      await db
+        .delete(setlistTracks)
+        .where(
+          and(
+            eq(setlistTracks.id, args.id),
+            inArray(
+              setlistTracks.setlistId,
+              db.select({ id: setlists.id }).from(setlists).where(eq(setlists.userId, user.id)),
+            ),
+          ),
+        );
+      return args.id;
+    },
+    reorderSetlist: async (
+      _p: unknown,
+      args: { id: string; trackIds: string[] },
+      ctx: GraphQLContext,
+    ) => {
+      const { setlist } = await requireOwnedSetlist(ctx, args.id);
+      // Rewrite positions to match the given order; only tracks in this setlist.
+      await Promise.all(
+        args.trackIds.map((tid, i) =>
+          db
+            .update(setlistTracks)
+            .set({ position: i + 1 })
+            .where(and(eq(setlistTracks.id, tid), eq(setlistTracks.setlistId, setlist.id))),
+        ),
+      );
+      return setlist;
     },
   },
 };
