@@ -103,6 +103,7 @@ export function useSegue() {
           buffer,
           features,
           cursor: null,
+          file,
         };
         setTracks((prev) => (slot === "A" ? { ...prev, A: track } : { ...prev, B: track }));
       } catch (e) {

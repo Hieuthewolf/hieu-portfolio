@@ -29,6 +29,8 @@ const typeDefs = /* GraphQL */ `
     musicalKey: String
     durationSec: Float
     analysis: JSON
+    audioUrl: String
+    audioName: String
     createdAt: String!
   }
 
@@ -40,6 +42,8 @@ const typeDefs = /* GraphQL */ `
     musicalKey: String
     durationSec: Float
     analysis: JSON
+    audioUrl: String
+    audioName: String
   }
 
   type SavedSet {

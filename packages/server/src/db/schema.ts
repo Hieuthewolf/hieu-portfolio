@@ -75,6 +75,9 @@ export const tracks = pgTable("tracks", {
   musicalKey: text("musical_key"),
   durationSec: real("duration_sec"),
   analysis: jsonb("analysis"),
+  // Optional original audio file, uploaded to Vercel Blob when the track was saved.
+  audioUrl: text("audio_url"),
+  audioName: text("audio_name"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

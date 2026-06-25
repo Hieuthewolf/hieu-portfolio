@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { graphql, useMutation } from "react-relay";
+import { upload } from "@vercel/blob/client";
 import { theme } from "../../theme";
 import { useSession } from "../../authClient";
 import type { Track } from "../audio/types";
@@ -28,6 +29,7 @@ const pill = {
 export function SaveTrackButton({ track }: { track: Track }) {
   const { data: session } = useSession();
   const [commit, saving] = useMutation<SaveTrackButtonMutation>(SaveTrackMutation);
+  const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
 
   if (!session) {
@@ -38,10 +40,10 @@ export function SaveTrackButton({ track }: { track: Track }) {
     );
   }
 
-  const onSave = () => {
+  const onSave = async () => {
     const f = track.features;
-    // Persist metadata + lightweight analysis (no audio, no heavy waveform peaks)
-    // so the track can be reloaded into Segue without re-analysis.
+    // Persist metadata + lightweight analysis (no waveform peaks) so the track can
+    // be reloaded into Segue without re-analysis.
     const analysis = {
       bpm: f.bpm,
       beat: f.beat,
@@ -54,24 +56,43 @@ export function SaveTrackButton({ track }: { track: Track }) {
       vocalRegions: f.vocalRegions,
       energySummary: f.energySummary,
     };
-    commit({
-      variables: {
-        input: {
-          title: track.name,
-          bpm: f.bpm,
-          camelot: f.camelot,
-          musicalKey: f.key,
-          durationSec: f.duration,
-          analysis,
+    setBusy(true);
+    try {
+      // Also stash the original audio file in Blob, if we still have it.
+      let audioUrl: string | undefined;
+      let audioName: string | undefined;
+      if (track.file) {
+        const blob = await upload(track.file.name, track.file, {
+          access: "public",
+          handleUploadUrl: "/api/blob/upload",
+        });
+        audioUrl = blob.url;
+        audioName = track.file.name;
+      }
+      commit({
+        variables: {
+          input: {
+            title: track.name,
+            bpm: f.bpm,
+            camelot: f.camelot,
+            musicalKey: f.key,
+            durationSec: f.duration,
+            analysis,
+            audioUrl,
+            audioName,
+          },
         },
-      },
-      onCompleted: () => setSaved(true),
-    });
+        onCompleted: () => setSaved(true),
+        onError: () => setBusy(false),
+      });
+    } catch {
+      setBusy(false);
+    }
   };
 
   return (
-    <button onClick={onSave} disabled={saving || saved} style={{ ...pill, opacity: saving ? 0.5 : 1 }}>
-      {saved ? "✓ saved" : "save to library"}
+    <button onClick={() => void onSave()} disabled={busy || saving || saved} style={{ ...pill, opacity: busy || saving ? 0.5 : 1 }}>
+      {saved ? "✓ saved" : busy ? "saving…" : "save to library"}
     </button>
   );
 }

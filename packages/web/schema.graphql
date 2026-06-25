@@ -84,6 +84,8 @@ input SaveSetInput {
 input SaveTrackInput {
   analysis: JSON
   artist: String
+  audioName: String
+  audioUrl: String
   bpm: Float
   camelot: String
   durationSec: Float
@@ -102,6 +104,8 @@ type SavedSet {
 type SavedTrack {
   analysis: JSON
   artist: String
+  audioName: String
+  audioUrl: String
   bpm: Float
   camelot: String
   createdAt: String!

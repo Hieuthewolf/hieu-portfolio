@@ -2,6 +2,7 @@ import { theme } from "../theme";
 import { fmt } from "../utils/format";
 import { suggestFix } from "../audio/fix";
 import { TransitionGap } from "./TransitionGap";
+import { SaveTrackButton } from "./SaveTrackButton";
 import type { SetGap, Track } from "../audio/types";
 
 interface TrackListProps {
@@ -143,6 +144,7 @@ export function TrackList({
                   </button>
                 </>
               )}
+              <SaveTrackButton track={t} />
               <button
                 style={{ ...iconBtn, color: theme.muted }}
                 onClick={() => onRemove(t.id)}

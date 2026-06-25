@@ -89,6 +89,7 @@ export function useSetBuilder() {
             buffer,
             features,
             cursor: null,
+            file,
           };
           setTracks((prev) => [...prev, track]);
         } catch (e) {
