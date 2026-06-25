@@ -32,6 +32,8 @@ interface SaveTrackInput {
   musicalKey?: string | null;
   durationSec?: number | null;
   analysis?: unknown;
+  audioUrl?: string | null;
+  audioName?: string | null;
 }
 
 interface SaveSetInput {
@@ -110,6 +112,9 @@ export const resolvers = {
       }
       if (input.analysis !== undefined && JSON.stringify(input.analysis).length > 200_000) {
         throw new GraphQLError("Analysis payload too large", { extensions: { code: "BAD_INPUT" } });
+      }
+      if (input.audioUrl && input.audioUrl.length > 2000) {
+        throw new GraphQLError("Audio URL too long", { extensions: { code: "BAD_INPUT" } });
       }
       const [row] = await db
         .insert(tracks)

@@ -41,6 +41,8 @@ const LibraryQuery = graphql`
       camelot
       musicalKey
       durationSec
+      audioUrl
+      audioName
     }
     mySets {
       id
@@ -195,6 +197,9 @@ export function Library() {
                           {t.bpm ? `${Math.round(t.bpm)} BPM` : "— BPM"} · {t.camelot ?? "?"}
                           {t.musicalKey ? ` (${t.musicalKey})` : ""} · {mmss(t.durationSec)}
                         </div>
+                        {t.audioUrl ? (
+                          <audio controls src={t.audioUrl} style={{ height: 30, marginTop: 6, maxWidth: "100%" }} />
+                        ) : null}
                       </div>
                       <button onClick={() => deleteTrack({ variables: { id: t.id }, onCompleted: refresh })} disabled={deletingTrack} style={{ ...pill, opacity: deletingTrack ? 0.5 : 1 }}>
                         remove
@@ -310,7 +315,17 @@ function SetlistsSection({
   };
 
   const addSaved = (t: SavedTrack) =>
-    commitTrack({ title: t.title, artist: t.artist ?? undefined, bpm: t.bpm ?? undefined, camelot: t.camelot ?? undefined }, false);
+    commitTrack(
+      {
+        title: t.title,
+        artist: t.artist ?? undefined,
+        bpm: t.bpm ?? undefined,
+        camelot: t.camelot ?? undefined,
+        audioUrl: t.audioUrl ?? undefined,
+        audioName: t.audioName ?? undefined,
+      },
+      false,
+    );
 
   const move = (index: number, dir: -1 | 1) => {
     if (!selected) return;

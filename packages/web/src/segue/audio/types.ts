@@ -129,6 +129,7 @@ export interface Track {
   buffer: AudioBuffer;
   features: AudioFeatures;
   cursor: number | null;
+  file?: File; // the original upload, kept so it can be saved to the library
 }
 
 // ---- Set Builder (mirrors packages/server/src/planner set types) ----
