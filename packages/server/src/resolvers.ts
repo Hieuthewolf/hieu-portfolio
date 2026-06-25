@@ -42,6 +42,18 @@ interface SaveSetInput {
   plan?: unknown;
 }
 
+interface ImportTrackInput {
+  title: string;
+  artist?: string | null;
+  bpm?: number | null;
+  camelot?: string | null;
+  musicalKey?: string | null;
+  durationSec?: number | null;
+  analysis?: unknown;
+  rbTrackId: string;
+  rbLocation?: string | null;
+}
+
 interface SetlistTrackInput {
   title: string;
   artist?: string | null;
@@ -126,6 +138,33 @@ export const resolvers = {
       const user = requireUser(ctx);
       await db.delete(tracks).where(and(eq(tracks.id, args.id), eq(tracks.userId, user.id)));
       return args.id;
+    },
+    importRekordboxTracks: async (
+      _p: unknown,
+      args: { tracks: ImportTrackInput[] },
+      ctx: GraphQLContext,
+    ) => {
+      const user = requireUser(ctx);
+      const incoming = args.tracks;
+      if (incoming.length === 0) return 0;
+      if (incoming.length > 2000) {
+        throw new GraphQLError("Too many tracks in one import (max 2000)", {
+          extensions: { code: "BAD_INPUT" },
+        });
+      }
+      // Skip tracks already imported (dedupe by rekordbox TrackID, per user).
+      const ids = incoming.map((t) => t.rbTrackId);
+      const existing = await db
+        .select({ rbTrackId: tracks.rbTrackId })
+        .from(tracks)
+        .where(and(eq(tracks.userId, user.id), inArray(tracks.rbTrackId, ids)));
+      const have = new Set(existing.map((r) => r.rbTrackId));
+      const toInsert = incoming
+        .filter((t) => t.title.trim() && !have.has(t.rbTrackId))
+        .map((t) => ({ ...t, userId: user.id }));
+      if (toInsert.length === 0) return 0;
+      await db.insert(tracks).values(toInsert);
+      return toInsert.length;
     },
     saveSet: async (_p: unknown, args: { input: SaveSetInput }, ctx: GraphQLContext) => {
       const user = requireUser(ctx);
