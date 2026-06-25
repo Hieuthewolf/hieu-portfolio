@@ -4,7 +4,9 @@ import { upload } from "@vercel/blob/client";
 import { theme } from "../theme";
 import { AccountMenu } from "./AccountMenu";
 import { AuthForm } from "./AuthForm";
+import { parseRekordboxXml } from "../segue/audio/rekordbox/importXml";
 import type { LibraryQuery as LibraryQueryType } from "../__generated__/LibraryQuery.graphql";
+import type { LibraryImportRekordboxMutation } from "../__generated__/LibraryImportRekordboxMutation.graphql";
 import type { LibraryDeleteTrackMutation } from "../__generated__/LibraryDeleteTrackMutation.graphql";
 import type { LibraryDeleteSetMutation } from "../__generated__/LibraryDeleteSetMutation.graphql";
 import type { LibraryCreateSetlistMutation } from "../__generated__/LibraryCreateSetlistMutation.graphql";
@@ -43,6 +45,7 @@ const LibraryQuery = graphql`
       durationSec
       audioUrl
       audioName
+      rbTrackId
     }
     mySets {
       id
@@ -56,6 +59,11 @@ const LibraryQuery = graphql`
 const DeleteTrack = graphql`
   mutation LibraryDeleteTrackMutation($id: ID!) {
     deleteTrack(id: $id)
+  }
+`;
+const ImportRekordbox = graphql`
+  mutation LibraryImportRekordboxMutation($tracks: [ImportTrackInput!]!) {
+    importRekordboxTracks(tracks: $tracks)
   }
 `;
 const DeleteSet = graphql`
@@ -156,6 +164,40 @@ export function Library() {
 
   const [deleteTrack, deletingTrack] = useMutation<LibraryDeleteTrackMutation>(DeleteTrack);
   const [deleteSet, deletingSet] = useMutation<LibraryDeleteSetMutation>(DeleteSet);
+  const [importRekordbox] = useMutation<LibraryImportRekordboxMutation>(ImportRekordbox);
+
+  const importRef = useRef<HTMLInputElement | null>(null);
+  const [importStatus, setImportStatus] = useState<string | null>(null);
+
+  const onImportFile = async (file: File) => {
+    setImportStatus("reading…");
+    try {
+      const parsed = parseRekordboxXml(await file.text());
+      if (parsed.length === 0) {
+        setImportStatus("No tracks found in that file.");
+        return;
+      }
+      // Chunk to stay under the server's per-call cap.
+      let imported = 0;
+      for (let i = 0; i < parsed.length; i += 1000) {
+        const chunk = parsed.slice(i, i + 1000);
+        setImportStatus(`importing ${i + chunk.length}/${parsed.length}…`);
+        imported += await new Promise<number>((resolve, reject) =>
+          importRekordbox({
+            variables: { tracks: chunk },
+            onCompleted: (res) => resolve(res.importRekordboxTracks),
+            onError: reject,
+          }),
+        );
+      }
+      setImportStatus(`Imported ${imported} of ${parsed.length} (${parsed.length - imported} already in your library).`);
+      refresh();
+    } catch (e) {
+      setImportStatus(`Import failed: ${(e as Error).message}`);
+    } finally {
+      if (importRef.current) importRef.current.value = "";
+    }
+  };
 
   return (
     <div style={{ minHeight: "100vh", background: theme.bg, color: theme.ink }}>
@@ -180,10 +222,19 @@ export function Library() {
             <SetlistsSection setlists={data.mySetlists} savedTracks={data.myTracks} onChange={refresh} />
 
             <div style={{ marginTop: 40 }}>
-              <div style={sectionLabel}>Saved tracks</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <div style={{ ...sectionLabel, marginBottom: 0 }}>Saved tracks</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  {importStatus && <span style={{ fontFamily: theme.mono, fontSize: 11, color: theme.muted }}>{importStatus}</span>}
+                  <input ref={importRef} type="file" accept=".xml" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) void onImportFile(f); }} />
+                  <button onClick={() => importRef.current?.click()} style={pill} title="Import your collection from a rekordbox.xml export">
+                    import from Rekordbox
+                  </button>
+                </div>
+              </div>
               {data.myTracks.length === 0 ? (
                 <p style={{ fontFamily: theme.sans, fontSize: 14, color: theme.muted }}>
-                  None yet — analyze a track in the Transition Coach and hit “Save to library”.
+                  None yet — analyze a track in the Transition Coach and hit “Save to library”, or import a rekordbox.xml.
                 </p>
               ) : (
                 <div style={{ display: "grid", gap: 8 }}>
@@ -196,6 +247,7 @@ export function Library() {
                         <div style={{ fontFamily: theme.mono, fontSize: 11.5, color: theme.muted, marginTop: 2 }}>
                           {t.bpm ? `${Math.round(t.bpm)} BPM` : "— BPM"} · {t.camelot ?? "?"}
                           {t.musicalKey ? ` (${t.musicalKey})` : ""} · {mmss(t.durationSec)}
+                          {t.rbTrackId ? " · Rekordbox" : ""}
                         </div>
                         {t.audioUrl ? (
                           <audio controls src={t.audioUrl} style={{ height: 30, marginTop: 6, maxWidth: "100%" }} />

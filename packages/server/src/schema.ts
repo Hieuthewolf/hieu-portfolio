@@ -31,6 +31,8 @@ const typeDefs = /* GraphQL */ `
     analysis: JSON
     audioUrl: String
     audioName: String
+    rbTrackId: String
+    rbLocation: String
     createdAt: String!
   }
 
@@ -44,6 +46,18 @@ const typeDefs = /* GraphQL */ `
     analysis: JSON
     audioUrl: String
     audioName: String
+  }
+
+  input ImportTrackInput {
+    title: String!
+    artist: String
+    bpm: Float
+    camelot: String
+    musicalKey: String
+    durationSec: Float
+    analysis: JSON
+    rbTrackId: String!
+    rbLocation: String
   }
 
   type SavedSet {
@@ -238,6 +252,7 @@ const typeDefs = /* GraphQL */ `
     planSet(input: PlanSetInput!): SetPlan!
     saveTrack(input: SaveTrackInput!): SavedTrack!
     deleteTrack(id: ID!): ID!
+    importRekordboxTracks(tracks: [ImportTrackInput!]!): Int!
     saveSet(input: SaveSetInput!): SavedSet!
     deleteSet(id: ID!): ID!
     createSetlist(name: String!): Setlist!

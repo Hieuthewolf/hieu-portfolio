@@ -22,6 +22,12 @@ describe("track resolver auth guards", () => {
     );
   });
 
+  it("importRekordboxTracks rejects anonymous users", async () => {
+    await expect(
+      resolvers.Mutation.importRekordboxTracks({}, { tracks: [] }, anon),
+    ).rejects.toThrow(/Unauthorized/);
+  });
+
   it("mySets returns an empty list for anonymous users", async () => {
     expect(await resolvers.Query.mySets({}, {}, anon)).toEqual([]);
   });

@@ -78,6 +78,9 @@ export const tracks = pgTable("tracks", {
   // Optional original audio file, uploaded to Vercel Blob when the track was saved.
   audioUrl: text("audio_url"),
   audioName: text("audio_name"),
+  // Provenance when imported from rekordbox.xml (for dedupe + the export round-trip).
+  rbTrackId: text("rb_track_id"),
+  rbLocation: text("rb_location"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
